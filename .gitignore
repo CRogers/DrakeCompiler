@@ -1,0 +1,6 @@
+*.sln
+*.suo
+bin/
+obj/
+Lexer.fs
+Parser.fs

@@ -1,0 +1,30 @@
+﻿{
+
+module Lexer
+
+open System
+open Microsoft.FSharp.Text.Lexing
+open Parser
+
+let lineno = ref 1
+
+let lexeme = Lexing.LexBuffer<_>.LexemeString
+let newline (lexbuf:LexBuffer<_>) = lexbuf.EndPos <- lexbuf.EndPos.NextLine
+
+}
+
+let integer = ['0'-'9']+
+let white = [' ' '\t']
+let endline = '\r'? '\n'
+
+rule token = parse
+    | white+                { token lexbuf }
+    | endline               { newline lexbuf; token lexbuf }
+    | eof                   { EOF }
+    | integer               { INT (Int32.Parse(lexeme lexbuf)) }
+    | '('                   { LPAR }
+    | ')'                   { RPAR }
+    | '+'                   { ADD }
+    | '-'                   { SUB }
+    | '/'                   { DIV }
+    | '*'                   { MUL }

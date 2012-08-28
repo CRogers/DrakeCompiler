@@ -1,0 +1,27 @@
+﻿%{
+
+open Tree
+
+%}
+
+%token<int> INT
+%token      ADD SUB DIV MUL LPAR RPAR EOF
+
+%type<Expr> program
+%start program
+
+%left ADD SUB
+%left DIV
+%left MUL
+
+%%
+
+program: expr EOF		{ $1 }
+
+expr:
+    | INT               { Int $1 }
+    | expr ADD expr     { Binop (Add, $1, $3) }
+    | expr SUB expr     { Binop (Sub, $1, $3) }
+    | expr DIV expr     { Binop (Div, $1, $3) }
+    | expr MUL expr     { Binop (Mul, $1, $3) }
+    | LPAR expr RPAR    { $2 }
