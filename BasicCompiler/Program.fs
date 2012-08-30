@@ -40,6 +40,8 @@ let parse file =
 
 [<EntryPointAttribute>]
 let main args =
+    ignore <| LLVM_Test.makeModule ()
+
     let mutable file = "../../tests/test.bco"
     if args.Length > 0 then
         file <- args.[0]

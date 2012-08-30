@@ -57,9 +57,9 @@
     <None Include="Parser.fsy" />
     <Compile Include="Lexer.fs" />
     <None Include="Lexer.fsl" />
+    <Compile Include="LLVM-Test.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
-    <Compile Include="LLVM-Test.fs" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
