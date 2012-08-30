@@ -6,8 +6,6 @@ open LLVM.Generated.Core
 open LLVM.Generated.BitWriter
 
 let makeModule () =
-    printfn "%s" Environment.CurrentDirectory
-
     let myModule = moduleCreateWithName "myModule"        
     let tyInt = int32Type ()
     let tyFunc = functionType tyInt [| tyInt; tyInt |]

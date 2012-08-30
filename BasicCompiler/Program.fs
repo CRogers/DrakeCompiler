@@ -1,5 +1,6 @@
 ﻿module Program
 
+open Tree
 open Print
 open Printf
 open Lexer
@@ -37,17 +38,29 @@ let parse file =
             printfn "%s\n%s^" unpaddedLine unpaddedSpacer
             Tree.Int 0
 
+let printFile name = printfn "%s" <| File.ReadAllText(name)
 
 [<EntryPointAttribute>]
 let main args =
-    ignore <| LLVM_Test.makeModule ()
 
     let mutable file = "../../tests/test.bco"
     if args.Length > 0 then
         file <- args.[0]
 
+    printFile file
+
     lex (fileToLexbuf file)
     printfn "\n"
-    printfmt (parse file)
+    let parsed = (parse file)
+    printfmt parsed
+
+    Gen.gen parsed
+    |> Gen.writeModuleToFile "test.bc"
+    |> ignore
+
+    printfn "\n"
+    let disassembler = System.Diagnostics.Process.Start("llvm-dis", "test.bc")
+    disassembler.WaitForExit()
+    printFile("test.ll");
 
     0
