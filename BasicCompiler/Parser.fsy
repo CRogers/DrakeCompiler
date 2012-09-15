@@ -5,9 +5,9 @@ open Tree
 %}
 
 %token<int> INT
-%token      ADD SUB DIV MUL LPAR RPAR EOF
+%token      ADD SUB DIV MUL LPAR RPAR EOF PRINT
 
-%type<Expr> program
+%type<Program> program
 %start program
 
 %left ADD SUB
@@ -16,7 +16,14 @@ open Tree
 
 %%
 
-program: expr EOF		{ $1 }
+program: stmts EOF		{ $1 }
+
+stmts:
+	| stmt				{ [$1] }
+	| stmt stmts        { $1 :: $2 }
+
+stmt:
+	| PRINT expr		{ Print $2 }
 
 expr:
     | INT               { Int $1 }

@@ -36,7 +36,7 @@ let parse file =
             let unpaddedLine = trimTabs sourceLine
             let unpaddedSpacer = "".PadRight(col - (sourceLine.Length - unpaddedLine.Length))
             printfn "%s\n%s^" unpaddedLine unpaddedSpacer
-            Tree.Int 0
+            []
 
 let printFile name = printfn "%s" <| File.ReadAllText(name)
 

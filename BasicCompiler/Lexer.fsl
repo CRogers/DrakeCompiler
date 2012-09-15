@@ -21,6 +21,7 @@ rule token = parse
     | white+                { token lexbuf }
     | endline               { newline lexbuf; token lexbuf }
     | eof                   { EOF }
+	| "print"				{ PRINT }
     | integer               { INT (Int32.Parse(lexeme lexbuf)) }
     | '('                   { LPAR }
     | ')'                   { RPAR }

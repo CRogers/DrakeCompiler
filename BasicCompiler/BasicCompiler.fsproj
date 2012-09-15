@@ -40,7 +40,7 @@
       <HintPath>C:\Program Files (x86)\FSharpPowerPack-2.0.0.0\bin\FSharp.PowerPack.dll</HintPath>
     </Reference>
     <Reference Include="LLVMFSharp">
-      <HintPath>..\..\llvm-fs\LLVMFSharp.dll</HintPath>
+      <HintPath>..\lib\llvm-fs-3.1\LLVMFSharp.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core, Version=4.3.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
@@ -51,6 +51,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LLVM.Extras.fs" />
     <Compile Include="Print.fs" />
     <Compile Include="Tree.fs" />
     <Compile Include="Parser.fs" />
