@@ -5,3 +5,4 @@ obj/
 Lexer.fs
 Parser.fs
 Parser.fsi
+sandbox/

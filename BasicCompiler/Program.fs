@@ -63,6 +63,4 @@ let main args =
     disassembler.WaitForExit()
     printFile("test.ll");
 
-    Console.ReadLine() |> ignore
-
     0

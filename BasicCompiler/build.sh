@@ -1,12 +1,18 @@
 #!/bin/sh
 
-fslex --unicode Lexer.fsl -o Lexer.fs
-fsyacc Parser.fsy -o Parser.fs --module Parser
+FSPP=../lib/FSharp.PowerPack/bin
+OUT=bin/build
 
-fsc --nologo --debug --target:exe -r:../lib/FSharp.PowerPack.dll --out:bin/build/BasicCompiler.exe \
+"$FSPP/fslex" --unicode Lexer.fsl -o Lexer.fs
+"$FSPP/fsyacc" Parser.fsy -o Parser.fs --module Parser
+
+mkdir -p $OUT
+
+fsc --nologo --debug --target:exe -r:"$FSPP/FSharp.PowerPack.dll" -r:"../lib/LLVMFSharp.dll" --out:"$OUT/BasicCompiler.exe" \
 	Print.fs \
 	Tree.fs \
 	Parser.fs \
 	Lexer.fs \
+	Gen.fs \
 	Program.fs
 	

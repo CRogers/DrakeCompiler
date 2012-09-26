@@ -6,20 +6,22 @@ open LLVM.Core
 open LLVM.Generated.Core
 open LLVM.Generated.BitWriter
 
-let tyInt = int32Type ()
+let i32 = int32Type ()
 let tyVoid = voidType ()
 let i8 = int8Type ()
-let tyPByte = pointerType (int8Type ()) 0u
+let i32zero = constInt i32 0UL false
+let i8p = pointerType (int8Type ()) 0u
 
 let globals = new Dictionary<string, ValueRef>()
 let addGlobalExtern mo name funcTy =
     let func = addFunction mo name funcTy
-    //addFunctionAttr func Attribute.ZExtAttribute
+    addFunctionAttr func Attribute.NoUnwindAttribute
     globals.Add(name, func)
     func
 
 let addGlobalStringConstant mo name (str:string) =
     let len = uint32 (str.Length)
+    // Add one to length for null terminator
     let globTy = arrayType i8 (len + 1u)
     let glob = addGlobal mo globTy name
     setLinkage glob Linkage.InternalLinkage
@@ -32,9 +34,9 @@ let mutable icount = 0
 let getIcount () =
     let ret = icount
     icount <- icount + 1
-    ret.ToString()
+    "tmp" + ret.ToString()
 
-let mkConst x = constInt tyInt (uint64 x) false 
+let mkConst x = constInt i32 (uint64 x) false 
 
 let rec genExpr bldr = function
     | Int x ->
@@ -48,19 +50,21 @@ let rec genExpr bldr = function
         buildFunc bldr (genExpr bldr left) (genExpr bldr right) (getIcount())
 
 let genStmt bldr = function
-    | Print e -> genExpr bldr e
-        //buildCall bldr globals.["printf"] [| globals.["numFmt"]; (genExpr bldr e) |] <| getIcount()
+    | Print e -> 
+        let expr = genExpr bldr e
+        let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (getIcount())
+        buildCall bldr globals.["printf"] [| gep; expr |] <| getIcount()
 
 let gen program =
     let myModule = moduleCreateWithName "basicModule"
     
-    let printfTy = varArgFunctionType tyInt [| tyPByte |]
+    let printfTy = varArgFunctionType i32 [| i8p |]
     let printf = addGlobalExtern myModule "printf" printfTy
 
     // Add %d numFmt
-    addGlobalStringConstant myModule "numFmt" "%d" |> ignore
+    addGlobalStringConstant myModule "numFmt" "%d\n" |> ignore
 
-    let mainTy = functionType tyInt [| tyInt |]
+    let mainTy = functionType i32 [| i32 |]
     let main = addFunction myModule "main" mainTy
 
     use bldr = new Builder()
