@@ -37,10 +37,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="FSharp.PowerPack">
-      <HintPath>C:\Program Files (x86)\FSharpPowerPack-2.0.0.0\bin\FSharp.PowerPack.dll</HintPath>
+      <HintPath>..\lib\FSharp.PowerPack\bin\FSharp.PowerPack.dll</HintPath>
     </Reference>
     <Reference Include="LLVMFSharp">
-      <HintPath>..\lib\llvm-fs-3.1\LLVMFSharp.dll</HintPath>
+      <HintPath>..\lib\LLVMFSharp.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core, Version=4.3.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
@@ -68,9 +68,8 @@
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets" Condition=" Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')" />
   <PropertyGroup>
-    <PreBuildEvent>fslex --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
-
-fsyacc "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser</PreBuildEvent>
+    <PreBuildEvent>"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
+"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser</PreBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
