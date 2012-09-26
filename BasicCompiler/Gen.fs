@@ -5,7 +5,6 @@ open Tree
 open LLVM.Core
 open LLVM.Generated.Core
 open LLVM.Generated.BitWriter
-open LLVM.Extras
 
 let tyInt = int32Type ()
 let tyVoid = voidType ()
@@ -20,8 +19,9 @@ let addGlobalExtern mo name funcTy =
     func
 
 let addGlobalStringConstant mo name (str:string) =
-    let len = uint32 (str.Length + 1)
-    let glob = addGlobal mo (arrayType i8 len) name
+    let len = uint32 (str.Length)
+    let globTy = arrayType i8 (len + 1u)
+    let glob = addGlobal mo globTy name
     setLinkage glob Linkage.InternalLinkage
     setGlobalConstant glob true
     setInitializer glob (constString str len false)
