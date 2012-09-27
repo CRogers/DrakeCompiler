@@ -1,10 +1,11 @@
 module Tree
 
+open LLVM.Generated.Core
+
 type Op = Add | Sub | Mul | Div
 
 type Expr =
     | Int of int
-    | Ident of string
     | Binop of Op * Expr * Expr
     | Call of string * list<Expr>
     | Var of string
@@ -17,3 +18,9 @@ type Decl =
     | Proc of (*name*) string * (*params*) list<string> * list<Stmt>
 
 type Program = list<Decl>
+
+type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) = class
+    member x.Name = name
+    member x.Func = func
+    member x.Params = params
+    end

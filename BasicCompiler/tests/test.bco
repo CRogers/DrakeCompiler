@@ -1,8 +1,12 @@
 proc f(a, b) {
-	return 1 + 2;
+	return a + b;
+}
+
+proc g(a, b, c) {
+	return a*a + b*b - c*c;
 }
 
 start {
-	print f(1, 2);
+	print g(f(1,2), f(2,2), g(2,2,3));
 	return 0;
 }
