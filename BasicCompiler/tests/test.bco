@@ -1,2 +1,8 @@
-print 1 + 2 * (3-4)
-print 4 * 125 - 8
+proc f(a, b) {
+	return 1 + 2;
+}
+
+start {
+	print f(1, 2);
+	return 0;
+}

@@ -14,6 +14,7 @@ let newline (lexbuf:LexBuffer<_>) = lexbuf.EndPos <- lexbuf.EndPos.NextLine
 }
 
 let integer = ['0'-'9']+
+let ident = ['a'-'z' 'A'-'Z' '_']+
 let white = [' ' '\t']
 let endline = '\r'? '\n'
 
@@ -21,11 +22,19 @@ rule token = parse
     | white+                { token lexbuf }
     | endline               { newline lexbuf; token lexbuf }
     | eof                   { EOF }
-	| "print"				{ PRINT }
+    | "print"               { PRINT }
+    | "proc"                { PROC }
+    | "return"              { RETURN }
+    | "start"               { START }
     | integer               { INT (Int32.Parse(lexeme lexbuf)) }
+    | ident                 { IDENT (lexeme lexbuf) }
     | '('                   { LPAR }
     | ')'                   { RPAR }
+    | '{'                   { LCURLY }
+    | '}'                   { RCURLY }
     | '+'                   { ADD }
     | '-'                   { SUB }
     | '/'                   { DIV }
     | '*'                   { MUL }
+    | ';'                   { SEMI }
+    | ','                   { COMMA }

@@ -4,8 +4,10 @@ open Tree
 
 %}
 
-%token<int> INT
-%token      ADD SUB DIV MUL LPAR RPAR EOF PRINT
+%token<int>    INT
+%token<string> IDENT
+%token         ADD SUB DIV MUL LPAR RPAR EOF PRINT COMMA 
+%token         RETURN LCURLY RCURLY SEMI START PROC
 
 %type<Program> program
 %start program
@@ -16,19 +18,44 @@ open Tree
 
 %%
 
-program: stmts EOF		{ $1 }
+program: decls EOF                  { $1 }
+
+decls:
+    | procDecls START block         { Proc ("main", [], $3) :: $1 }
+
+
+procDecls:
+    | /* empty */                   { [] }
+    | PROC IDENT LPAR paramList RPAR block procDecls
+        { Proc ($2, $4, $6) :: $7 }
+
+paramList:
+    | /* empty */                   { [] }
+    | IDENT                         { [$1] }
+    | IDENT COMMA paramList         { $1 :: $3 }
+
+block:
+    | LCURLY stmts RCURLY           { $2 }
 
 stmts:
-	| stmt				{ [$1] }
-	| stmt stmts        { $1 :: $2 }
+    | /* empty */                   { [] }
+    | stmt SEMI stmts               { $1 :: $3 }
 
 stmt:
-	| PRINT expr		{ Print $2 }
+    | PRINT expr                    { Print $2 }
+    | RETURN expr                   { Return $2 }
 
 expr:
-    | INT               { Int $1 }
-    | expr ADD expr     { Binop (Add, $1, $3) }
-    | expr SUB expr     { Binop (Sub, $1, $3) }
-    | expr DIV expr     { Binop (Div, $1, $3) }
-    | expr MUL expr     { Binop (Mul, $1, $3) }
-    | LPAR expr RPAR    { $2 }
+    | INT                           { Int $1 }
+    | expr ADD expr                 { Binop (Add, $1, $3) }
+    | expr SUB expr                 { Binop (Sub, $1, $3) }
+    | expr DIV expr                 { Binop (Div, $1, $3) }
+    | expr MUL expr                 { Binop (Mul, $1, $3) }
+    | IDENT LPAR argList RPAR       { Call ($1, $3) }
+	| IDENT							{ Var $1 }
+    | LPAR expr RPAR                { $2 }
+
+argList:
+    | /* empty */                   { [] }
+    | expr                          { [$1] }
+    | expr COMMA argList            { $1 :: $3 }

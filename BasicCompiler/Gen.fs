@@ -38,7 +38,7 @@ let getIcount () =
 
 let mkConst x = constInt i32 (uint64 x) false 
 
-let rec genExpr bldr = function
+let rec genExpr bldr func = function
     | Int x ->
         mkConst x
     | Binop (op, left, right) ->
@@ -47,13 +47,40 @@ let rec genExpr bldr = function
             | Sub -> buildSub
             | Div -> buildSDiv
             | Mul -> buildMul
-        buildFunc bldr (genExpr bldr left) (genExpr bldr right) (getIcount())
+        buildFunc bldr (genExpr bldr func left) (genExpr bldr func right) (getIcount())
+    | Call (name, args) ->
+        let func = globals.[name]
+        let argRefs = Seq.map (genExpr bldr func) args |> Seq.toArray
+        buildCall bldr func argRefs (getIcount())
 
-let genStmt bldr = function
+let genStmt bldr func = function
     | Print e -> 
-        let expr = genExpr bldr e
+        let expr = genExpr bldr func e
         let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (getIcount())
         buildCall bldr globals.["printf"] [| gep; expr |] <| getIcount()
+    | Return e ->
+        let expr = genExpr bldr func e
+        buildRet bldr expr
+
+
+let genDecl = function
+    | Proc (name, numArgs, stmts) ->
+        let func = globals.[name]
+        use bldr = new Builder()
+        positionBuilderAtEnd bldr (appendBasicBlock func "entry")
+        Seq.iter (fun s -> genStmt bldr func s |> ignore) stmts
+
+let defineDecl myModule = function
+    | Proc (name, params, _) ->
+        let numParams = params.Length
+        let argTy = Seq.initInfinite (fun i -> i32) |> Seq.take numParams |> Seq.toArray
+        let funcTy = functionType i32 argTy
+        let func = addFunction myModule name funcTy
+
+        // Set the function parameter names
+        Seq.iter (fun i -> setValueName (getParam func <| uint32 i) params.[i]) [0..numParams-1]
+
+        globals.Add(name, func)
 
 let gen program =
     let myModule = moduleCreateWithName "basicModule"
@@ -64,15 +91,11 @@ let gen program =
     // Add %d numFmt
     addGlobalStringConstant myModule "numFmt" "%d\n" |> ignore
 
-    let mainTy = functionType i32 [| i32 |]
-    let main = addFunction myModule "main" mainTy
+    // Make funcTypes for each procedure
+    Seq.iter (defineDecl myModule) program
 
-    use bldr = new Builder()
-    positionBuilderAtEnd bldr (appendBasicBlock main "entry")
-    
-    Seq.iter (fun s -> genStmt bldr s |> ignore) program 
-    
-    buildRet bldr (mkConst 0) |> ignore
+    // Generate code for each proc
+    Seq.iter genDecl program
 
     myModule
 
