@@ -1,8 +1,10 @@
 proc f(a, b) {
+	print 10;
 	return a + b;
 }
 
 proc g(a, b, c) {
+	print 20;
 	return a*a + b*b - c*c;
 }
 

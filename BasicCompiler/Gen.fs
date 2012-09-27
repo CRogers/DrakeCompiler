@@ -81,13 +81,11 @@ let defineDecl myModule = function
         let funcTy = functionType i32 argTy
         let func = addFunction myModule name funcTy
 
-        let paramMapArray = Array.zeroCreate<string * ValueRef> numParams
-
         // Set the function parameter names and fill the map
         let paramMapSeq = Seq.map (fun i -> 
             let paramName = params.[i]
             let llvmParam = getParam func <| uint32 i
-            // Set the function param name
+            // Set the function param name and return a tuple for the map
             setValueName llvmParam paramName
             (paramName, llvmParam)) [0..numParams-1]
 
