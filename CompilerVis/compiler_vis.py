@@ -49,7 +49,7 @@ def getScript(name=''):
 
 @get('/api/tests')
 def getTests():
-	response.content_type = 'test/json'
+	response.content_type = 'text/json'
 	return json.dumps(os.listdir(TESTSDIR))
 
 @get('/api/tests/<name>')
@@ -58,7 +58,7 @@ def getTest(name=''):
 
 @post('/api/compiler')
 def postCompiler():
-	response.content_type = 'test/json'
+	response.content_type = 'text/json'
 	code = request.forms.get('code')
 
 	fd, tmp = tempfile.mkstemp()
@@ -69,6 +69,8 @@ def postCompiler():
 	parser = run(COMPILERLOC, '-s -p ' + tmp)
 	llvm = run(COMPILERLOC, '-s -v ' + tmp)
 	asm = run(COMPILERLOC, '-s -a ' + tmp)
+
+	os.remove(tmp)
 
 	return json.dumps({'lexer':lexer, 'parser':parser, 'llvm':llvm, 'asm':asm})
 
