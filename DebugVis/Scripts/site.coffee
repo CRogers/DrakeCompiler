@@ -1,14 +1,14 @@
 ﻿$ ->
 	loadTest = (name) ->
 		$.ajax
-			method: 'get'
+			type: 'GET'
 			url: '/api/tests/' + name
 			success: (data) ->
 				$('#source-text').text data
 
 	reloadTests = ->
 		$.ajax
-			method: 'get'
+			type: 'GET'
 			url: '/api/tests'
 			success: (data) ->
 				$ddm = $('#test-dropdown')
@@ -18,6 +18,16 @@
 
 				$ddm.find('a').click (e) ->
 					loadTest $(this).text()
+
+	compile = (code) ->
+		$.ajax
+			type: 'POST'
+			data:
+				code: code
+			dataType: 'json'
+			url: '/api/compiler'
+			success: (data) ->
+				console.log data
 
 	# tabify the output tabs
 	$('#output-tabs a').click (e) ->
@@ -29,4 +39,5 @@
 		reloadTests()
 
 	# compile it
-	#$('#compile-btn')
+	$('#compile-btn').click (e) ->
+		compile $('#source-text').text()

@@ -59,6 +59,7 @@
     <None Include="Lexer.fsl" />
     <Compile Include="LLVM-Test.fs" />
     <Compile Include="Gen.fs" />
+    <Compile Include="Compiler.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
   </ItemGroup>

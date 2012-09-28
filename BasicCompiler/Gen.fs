@@ -107,5 +107,3 @@ let gen program =
     Seq.iter genDecl program
 
     myModule
-
-let writeModuleToFile fileName mo = writeBitcodeToFile mo fileName
