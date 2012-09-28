@@ -43,7 +43,7 @@ let printFile name = printfn "%s" <| File.ReadAllText(name)
 [<EntryPointAttribute>]
 let main args =
 
-    let mutable file = "../../tests/test.bco"
+    let mutable file = "../../../tests/test.bco"
     if args.Length > 0 then
         file <- args.[0]
 
