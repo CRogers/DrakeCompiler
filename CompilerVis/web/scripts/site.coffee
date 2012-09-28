@@ -41,4 +41,4 @@
 
 	# compile it
 	$('#compile-btn').click (e) ->
-		compile $('#source-text').text()
+		compile $('#source-text').val()

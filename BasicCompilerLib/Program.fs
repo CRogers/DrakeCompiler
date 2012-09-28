@@ -6,8 +6,7 @@ open System.IO
 
 let printFile name = printfn "%s" <| File.ReadAllText(name)
 
-[<EntryPointAttribute>]
-let main args =
+let main (args:array<string>) =
 
     let mutable file = "../../../tests/test.bco"
     if args.Length > 0 then

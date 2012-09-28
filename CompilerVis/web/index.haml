@@ -34,13 +34,13 @@
 							%a{href: "#asm"} Assembly
 					.tab-content
 						#lexer.tab-pane
-							#lexer-output.output
+							%pre#lexer-output.output
 						#parser.tab-pane
-							#parser-output.output
+							%pre#parser-output.output
 						#llvm.tab-pane.active
-							#llvm-output.output
+							%pre#llvm-output.output
 						#asm.tab-pane
-							#asm-output.output
+							%pre#asm-output.output
 
 		%script{src: "/scripts/jquery-1.7.1.js"}
 		%script{src: "/scripts/bootstrap.js"}

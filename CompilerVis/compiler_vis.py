@@ -6,11 +6,14 @@ from hamlpy import hamlpy
 from scss import parser
 import re
 import coffeescript
+import tempfile
 
 TESTSDIR = '../tests/'
+COMPILERLOC = "bin/BasicCompiler"
 
 def run(program, args):
-	sub.Popen(program + ' ' + args, stdout=sub.PIPE, stderr=sub.PIPE)
+	print(program + ' ' + args)
+	p = sub.Popen(program + ' ' + args, stdout=sub.PIPE, stderr=sub.PIPE)
 	output, errors = p.communicate()
 	return output
 
@@ -57,6 +60,16 @@ def getTest(name=''):
 def postCompiler():
 	response.content_type = 'test/json'
 	code = request.forms.get('code')
-	return json.dumps({'lexer':'lex', 'parser':'parse', 'llvm':'llvm'})
+
+	fd, tmp = tempfile.mkstemp()
+	os.write(fd, code)
+	os.close(fd)
+
+	lexer = run(COMPILERLOC, '-s -l ' + tmp)
+	parser = run(COMPILERLOC, '-s -p ' + tmp)
+	llvm = run(COMPILERLOC, '-s -v ' + tmp)
+	asm = run(COMPILERLOC, '-s -a ' + tmp)
+
+	return json.dumps({'lexer':lexer, 'parser':parser, 'llvm':llvm, 'asm':asm})
 
 bottle.run(host='localhost', port='8900')
