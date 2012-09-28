@@ -7,3 +7,4 @@ Parser.fs
 Parser.fsi
 sandbox/
 _ReSharper*
+*.pyc

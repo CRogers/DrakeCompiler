@@ -27,7 +27,8 @@
 			dataType: 'json'
 			url: '/api/compiler'
 			success: (data) ->
-				console.log data
+				for k, v of data
+					$('#'+k+'-output').text v
 
 	# tabify the output tabs
 	$('#output-tabs a').click (e) ->

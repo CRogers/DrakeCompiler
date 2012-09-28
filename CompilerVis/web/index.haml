@@ -1,0 +1,47 @@
+!!!
+%html
+	%head
+		%title Compiler Visualiser
+		%link{href: "/styles/bootstrap.css", rel: "stylesheet"}
+		%link{href: "/styles/site.css", rel: "stylesheet"}
+	%body
+		.container-fluid
+			.row-fluid
+				.span12
+					%h1 Compiler Visualiser
+			.row-fluid
+				.span6
+					%h2 Source
+					.btn-group
+						%button#test-btn.btn.dropdown-toggle{data-toggle: "dropdown"}
+							Load Test
+							%span.caret
+						%ul#test-dropdown.dropdown-menu
+							%li
+								%a{href: "#"} Sample
+						%button#compile-btn.btn.btn-primary Compile
+					%textarea#source-text
+				.span6
+					%h2 Output
+					%ul#output-tabs.nav.nav-tabs
+						%li
+							%a{href: "#lexer"} Lexer
+						%li
+							%a{href: "#parser"} Parser
+						%li.active
+							%a{href: "#llvm"} LLVM
+						%li
+							%a{href: "#asm"} Assembly
+					.tab-content
+						#lexer.tab-pane
+							#lexer-output.output
+						#parser.tab-pane
+							#parser-output.output
+						#llvm.tab-pane.active
+							#llvm-output.output
+						#asm.tab-pane
+							#asm-output.output
+
+		%script{src: "/scripts/jquery-1.7.1.js"}
+		%script{src: "/scripts/bootstrap.js"}
+		%script{src: "/scripts/site.js"} 
