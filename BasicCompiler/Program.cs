@@ -18,6 +18,9 @@ namespace BasicCompiler
         [Option("p", "emit-parser", HelpText = "Emit the result of the parsing stage")]
         public bool EmitParser { get; set; }
 
+        [Option("q", "emit-parser-annotated", HelpText = "Emit the result of the parsing stage with annotations")]
+        public bool EmitParserAnnotated { get; set; }
+
         [Option("v", "emit-llvm", HelpText = "Emit the resulting LLVM intermediary code")]
         public bool EmitLLVM { get; set; }
 
@@ -52,6 +55,8 @@ namespace BasicCompiler
                 }
                 else if (options.EmitParser) {
                     output = Print.fmt(Compiler.parseText(input));
+                } else if (options.EmitParserAnnotated) {
+                    output = Print.fmt(Annotate.annotate(Compiler.parseText(input)));
                 }
                 else if (options.EmitLLVM || options.EmitASM) {
                     var module = Compiler.compile(input);
@@ -73,6 +78,10 @@ namespace BasicCompiler
                 }
                 else {
                     File.WriteAllText("a.out", output);
+                }
+
+                if (Debugger.IsAttached) {
+                    Console.ReadLine();
                 }
 
                 return;

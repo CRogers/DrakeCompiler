@@ -4,10 +4,10 @@ open Tree
 
 %}
 
-%token<int>    INT
+%token<int>    CONSTINT
 %token<string> IDENT
-%token         ADD SUB DIV MUL LPAR RPAR EOF PRINT COMMA 
-%token         RETURN LCURLY RCURLY SEMI START PROC EQUALS LET IN
+%token         ADD SUB DIV MUL LPAR RPAR EOF PRINT COMMA COLON
+%token         RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
 
 %type<Program> program
 %start program
@@ -21,18 +21,25 @@ open Tree
 program: decls EOF                  { $1 }
 
 decls:
-    | procDecls START block         { Proc ("main", [], $3) :: $1 }
+    | procDecls START block         { DeclA (Proc ("main", [], Unit, $3)) :: $1 }
 
 
 procDecls:
     | /* empty */                   { [] }
-    | PROC IDENT LPAR paramList RPAR block procDecls
-        { Proc ($2, $4, $6) :: $7 }
+    | PROC IDENT LPAR paramList RPAR returnType block procDecls
+        { DeclA (Proc ($2, $4, $6, $7)) :: $8 }
+
+returnType:
+    | /* empty */                   { Unit }
+    | COLON IDENT                   { parsePType $2 }
 
 paramList:
     | /* empty */                   { [] }
-    | IDENT                         { [$1] }
-    | IDENT COMMA paramList         { $1 :: $3 }
+    | param                         { [$1] }
+    | param COMMA paramList         { $1 :: $3 }
+
+param:
+    | IDENT COLON IDENT             { Param ($1, parsePType $3) }
 
 block:
     | LCURLY stmts RCURLY           { $2 }
@@ -42,18 +49,18 @@ stmts:
     | stmt SEMI stmts               { $1 :: $3 }
 
 stmt:
-    | PRINT expr                    { Print $2 }
-    | IDENT EQUALS expr             { Assign ($1, $3) }
-    | RETURN expr                   { Return $2 }
+    | PRINT expr                    { StmtA (Print $2) }
+    | IDENT EQUALS expr             { StmtA (Assign ($1, $3)) }
+    | RETURN expr                   { StmtA (Return $2) }
 
 expr:
-    | INT                           { Int $1 }
-    | expr ADD expr                 { Binop (Add, $1, $3) }
-    | expr SUB expr                 { Binop (Sub, $1, $3) }
-    | expr DIV expr                 { Binop (Div, $1, $3) }
-    | expr MUL expr                 { Binop (Mul, $1, $3) }
-    | IDENT LPAR argList RPAR       { Call ($1, $3) }
-	| IDENT							{ Var $1 }
+    | CONSTINT                      { ExprA (ConstInt $1) }
+    | expr ADD expr                 { ExprA (Binop (Add, $1, $3)) }
+    | expr SUB expr                 { ExprA (Binop (Sub, $1, $3)) }
+    | expr DIV expr                 { ExprA (Binop (Div, $1, $3)) }
+    | expr MUL expr                 { ExprA (Binop (Mul, $1, $3)) }
+    | IDENT LPAR argList RPAR       { ExprA (Call ($1, $3)) }
+	| IDENT							{ ExprA (Var $1) }
     | LPAR expr RPAR                { $2 }
 
 argList:

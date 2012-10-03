@@ -26,7 +26,7 @@ rule token = parse
     | "proc"                { PROC }
     | "return"              { RETURN }
     | "start"               { START }
-    | integer               { INT (Int32.Parse(lexeme lexbuf)) }
+    | integer               { CONSTINT (Int32.Parse(lexeme lexbuf)) }
     | ident                 { IDENT (lexeme lexbuf) }
     | '('                   { LPAR }
     | ')'                   { RPAR }
@@ -36,6 +36,7 @@ rule token = parse
     | '-'                   { SUB }
     | '/'                   { DIV }
     | '*'                   { MUL }
+    | ':'                   { COLON }
     | ';'                   { SEMI }
     | ','                   { COMMA }
     | '='                   { EQUALS }

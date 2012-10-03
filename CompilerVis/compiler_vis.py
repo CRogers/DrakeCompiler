@@ -67,11 +67,17 @@ def postCompiler():
 
 	lexer = run(COMPILERLOC, '-s -l ' + tmp)
 	parser = run(COMPILERLOC, '-s -p ' + tmp)
+	parserAnnot = run(COMPILERLOC, '-s -q ' + tmp)
 	llvm = run(COMPILERLOC, '-s -v ' + tmp)
 	asm = run(COMPILERLOC, '-s -a ' + tmp)
 
 	os.remove(tmp)
 
-	return json.dumps({'lexer':lexer, 'parser':parser, 'llvm':llvm, 'asm':asm})
+	return json.dumps({
+		'lexer':lexer,
+		'parser':parser,
+		'parserAnnot':parserAnnot,
+		'llvm':llvm,
+		'asm':asm})
 
 bottle.run(host='localhost', port='8900')

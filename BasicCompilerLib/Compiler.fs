@@ -51,6 +51,7 @@ let parseText (text: string) = parse <| text.Split('\n')
 
 let compile text =
     let parsed = parseText text
+    let annotated = Annotate.annotate parsed
     Gen.gen parsed
 
 let writeModuleToFile fileName mo = writeBitcodeToFile mo fileName

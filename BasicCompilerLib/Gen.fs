@@ -36,10 +36,10 @@ let addGlobalStringConstant mo name (str:string) =
 
 let mkConst x = constInt i32 (uint64 x) false 
 
-let rec genExpr bldr (env:Environ) irname item =
+let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
     let llvmname = if irname.Equals("") then env.GetTmp() else env.GetName irname
-    match item with
-        | Int x ->
+    match exprA.Expr with
+        | ConstInt x ->
             mkConst x
         | Binop (op, left, right) ->
             let buildFunc = match op with
@@ -55,7 +55,7 @@ let rec genExpr bldr (env:Environ) irname item =
         | Var name ->
             env.GetRef(name)
 
-let genStmt bldr env = function
+let genStmt bldr env (stmtA:StmtA) = match stmtA.Stmt with
     | Print e -> 
         let expr = genExpr bldr env "print" e
         let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (env.GetTmp())
@@ -69,16 +69,16 @@ let genStmt bldr env = function
         buildRet bldr expr
 
 
-let genDecl = function
-    | Proc (name, numArgs, stmts) ->
+let genDecl (declA:DeclA) = match declA.Decl with
+    | Proc (name, _, _, stmts) ->
         let func = globalFuncs.[name]
         let env = Environ(func)
         use bldr = new Builder()
         positionBuilderAtEnd bldr (appendBasicBlock func.Func "entry")
         Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
 
-let defineDecl myModule = function
-    | Proc (name, params, _) ->
+let defineDecl myModule (declA:DeclA) = match declA.Decl with
+    | Proc (name, params, returnType, _) ->
         let numParams = params.Length
         let argTy = Array.create numParams i32
         let funcTy = functionType i32 argTy
@@ -86,7 +86,7 @@ let defineDecl myModule = function
 
         // Set the function parameter names and fill the map
         let paramMapSeq = Seq.map (fun i -> 
-            let paramName = params.[i]
+            let paramName = params.[i].Name
             let llvmParam = getParam func <| uint32 i
             // Set the function param name and return a tuple for the map
             setValueName llvmParam paramName
@@ -94,7 +94,7 @@ let defineDecl myModule = function
 
         globalFuncs.Add(name, new Func(name, func, Map.ofSeq paramMapSeq))
 
-let gen program =
+let gen (program:list<DeclA>) =
     let myModule = moduleCreateWithName "basicModule"
     
     let printfTy = varArgFunctionType i32 [| i8p |]

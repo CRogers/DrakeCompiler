@@ -28,6 +28,8 @@
 							%a{href: "#lexer"} Lexer
 						%li
 							%a{href: "#parser"} Parser
+						%li
+							%a{href: "#parserAnnot"} Parser (Annotated)	
 						%li.active
 							%a{href: "#llvm"} LLVM
 						%li
@@ -37,6 +39,8 @@
 							%pre#lexer-output.output
 						#parser.tab-pane
 							%pre#parser-output.output
+						#parserAnnot.tab-pane
+							%pre#parserAnnot-output.output
 						#llvm.tab-pane.active
 							%pre#llvm-output.output
 						#asm.tab-pane
