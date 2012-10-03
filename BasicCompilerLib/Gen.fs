@@ -38,7 +38,7 @@ let mkConst x = constInt i32 (uint64 x) false
 
 let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
     let llvmname = if irname.Equals("") then env.GetTmp() else env.GetName irname
-    match exprA.Expr with
+    match exprA.Item with
         | ConstInt x ->
             mkConst x
         | Binop (op, left, right) ->
@@ -55,7 +55,7 @@ let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
         | Var name ->
             env.GetRef(name)
 
-let genStmt bldr env (stmtA:StmtA) = match stmtA.Stmt with
+let genStmt bldr env (stmtA:StmtA) = match stmtA.Item with
     | Print e -> 
         let expr = genExpr bldr env "print" e
         let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (env.GetTmp())
@@ -69,7 +69,7 @@ let genStmt bldr env (stmtA:StmtA) = match stmtA.Stmt with
         buildRet bldr expr
 
 
-let genDecl (declA:DeclA) = match declA.Decl with
+let genDecl (declA:DeclA) = match declA.Item with
     | Proc (name, _, _, stmts) ->
         let func = globalFuncs.[name]
         let env = Environ(func)
@@ -77,7 +77,7 @@ let genDecl (declA:DeclA) = match declA.Decl with
         positionBuilderAtEnd bldr (appendBasicBlock func.Func "entry")
         Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
 
-let defineDecl myModule (declA:DeclA) = match declA.Decl with
+let defineDecl myModule (declA:DeclA) = match declA.Item with
     | Proc (name, params, returnType, _) ->
         let numParams = params.Length
         let argTy = Array.create numParams i32

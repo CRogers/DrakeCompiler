@@ -21,13 +21,13 @@ open Tree
 program: decls EOF                  { $1 }
 
 decls:
-    | procDecls START block         { DeclA (Proc ("main", [], Unit, $3)) :: $1 }
+    | procDecls START block         { Annot (Proc ("main", [], Unit, $3)) :: $1 }
 
 
 procDecls:
     | /* empty */                   { [] }
     | PROC IDENT LPAR paramList RPAR returnType block procDecls
-        { DeclA (Proc ($2, $4, $6, $7)) :: $8 }
+        { Annot (Proc ($2, $4, $6, $7)) :: $8 }
 
 returnType:
     | /* empty */                   { Unit }
@@ -49,18 +49,18 @@ stmts:
     | stmt SEMI stmts               { $1 :: $3 }
 
 stmt:
-    | PRINT expr                    { StmtA (Print $2) }
-    | IDENT EQUALS expr             { StmtA (Assign ($1, $3)) }
-    | RETURN expr                   { StmtA (Return $2) }
+    | PRINT expr                    { Annot (Print $2) }
+    | IDENT EQUALS expr             { Annot (Assign ($1, $3)) }
+    | RETURN expr                   { Annot (Return $2) }
 
 expr:
-    | CONSTINT                      { ExprA (ConstInt $1) }
-    | expr ADD expr                 { ExprA (Binop (Add, $1, $3)) }
-    | expr SUB expr                 { ExprA (Binop (Sub, $1, $3)) }
-    | expr DIV expr                 { ExprA (Binop (Div, $1, $3)) }
-    | expr MUL expr                 { ExprA (Binop (Mul, $1, $3)) }
-    | IDENT LPAR argList RPAR       { ExprA (Call ($1, $3)) }
-	| IDENT							{ ExprA (Var $1) }
+    | CONSTINT                      { Annot (ConstInt $1) }
+    | expr ADD expr                 { Annot (Binop (Add, $1, $3)) }
+    | expr SUB expr                 { Annot (Binop (Sub, $1, $3)) }
+    | expr DIV expr                 { Annot (Binop (Div, $1, $3)) }
+    | expr MUL expr                 { Annot (Binop (Mul, $1, $3)) }
+    | IDENT LPAR argList RPAR       { Annot (Call ($1, $3)) }
+	| IDENT							{ Annot (Var $1) }
     | LPAR expr RPAR                { $2 }
 
 argList:

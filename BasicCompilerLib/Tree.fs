@@ -16,6 +16,13 @@ let parsePType str = match str with
     | "Int" -> Int
     | "Bool" -> Bool
 
+type Annot<'a>(item:'a) =
+    member x.Item = item
+    member val PType = Undef with get, set
+    override x.ToString() = fmt x.Item + match x.PType with
+        | Undef -> ""
+        | _ -> ":" + fmt x.PType
+
 type Expr =
     | ConstInt of int
     | ConstBool of bool
@@ -23,24 +30,14 @@ type Expr =
     | Call of string * list<ExprA>
     | Var of string
 
-and ExprA(expr: Expr) =     
-    member x.Expr = expr
-    member val PType = Undef with get, set
-    override x.ToString() = fmt expr + match x.PType with
-        | Undef -> ""
-        | _ -> ":" + fmt x.PType
+and ExprA = Annot<Expr>
 
 type Stmt =
     | Print of ExprA
     | Assign of string * ExprA
     | Return of ExprA
 
-and StmtA(stmt: Stmt) =
-    member x.Stmt = stmt
-    member val PType = Undef with get, set
-    override x.ToString() = fmt stmt + match x.PType with
-        | Undef -> ""
-        | _ -> ":" + fmt x.PType
+type StmtA = Annot<Stmt>
 
 type Param(name: string, ptype: PType) =
     member x.Name = name
@@ -50,10 +47,7 @@ type Param(name: string, ptype: PType) =
 type Decl = 
     | Proc of (*name*) string * (*params*) list<Param> * (*returnType*) PType * list<StmtA>
 
-and DeclA(decl: Decl) =
-    member x.Decl = decl
-    member val PType = Undef with get, set
-    override x.ToString() = fmt decl
+type DeclA = Annot<Decl>
 
 type Program = list<DeclA>
 
