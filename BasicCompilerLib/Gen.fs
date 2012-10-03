@@ -32,47 +32,50 @@ let addGlobalStringConstant mo name (str:string) =
     globals.Add(name, glob)
     glob
 
-let mutable icount = 0
-let getTmp () =
-    let ret = icount
-    icount <- icount + 1
-    "tmp" + ret.ToString()
+
 
 let mkConst x = constInt i32 (uint64 x) false 
 
-let rec genExpr bldr (func: Func) = function
-    | Int x ->
-        mkConst x
-    | Binop (op, left, right) ->
-        let buildFunc = match op with
-            | Add -> buildAdd
-            | Sub -> buildSub
-            | Div -> buildSDiv
-            | Mul -> buildMul
-        buildFunc bldr (genExpr bldr func left) (genExpr bldr func right) (getTmp())
-    | Call (name, args) ->
-        let funcToCall = globalFuncs.[name]
-        let argRefs = Seq.map (genExpr bldr func) args |> Seq.toArray
-        buildCall bldr funcToCall.Func argRefs (getTmp())
-    | Var name ->
-        func.Params.[name]
+let rec genExpr bldr (env:Environ) irname item =
+    let llvmname = if irname.Equals("") then env.GetTmp() else env.GetName irname
+    match item with
+        | Int x ->
+            mkConst x
+        | Binop (op, left, right) ->
+            let buildFunc = match op with
+                | Add -> buildAdd
+                | Sub -> buildSub
+                | Div -> buildSDiv
+                | Mul -> buildMul
+            buildFunc bldr (genExpr bldr env "" left) (genExpr bldr env "" right) llvmname
+        | Call (name, args) ->
+            let funcToCall = globalFuncs.[name]
+            let argRefs = Seq.map (genExpr bldr env "") args |> Seq.toArray
+            buildCall bldr funcToCall.Func argRefs llvmname
+        | Var name ->
+            env.GetRef(name)
 
-let genStmt bldr func = function
+let genStmt bldr env = function
     | Print e -> 
-        let expr = genExpr bldr func e
-        let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (getTmp())
-        buildCall bldr globals.["printf"] [| gep; expr |] <| getTmp()
+        let expr = genExpr bldr env "print" e
+        let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (env.GetTmp())
+        buildCall bldr globals.["printf"] [| gep; expr |] <| env.GetTmp()
+    | Assign (name, e) ->
+        let expr = genExpr bldr env name e
+        env.AddRef(name, expr)
+        expr
     | Return e ->
-        let expr = genExpr bldr func e
+        let expr = genExpr bldr env "return" e
         buildRet bldr expr
 
 
 let genDecl = function
     | Proc (name, numArgs, stmts) ->
         let func = globalFuncs.[name]
+        let env = Environ(func)
         use bldr = new Builder()
         positionBuilderAtEnd bldr (appendBasicBlock func.Func "entry")
-        Seq.iter (fun s -> genStmt bldr func s |> ignore) stmts
+        Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
 
 let defineDecl myModule = function
     | Proc (name, params, _) ->

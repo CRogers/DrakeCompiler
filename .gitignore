@@ -8,3 +8,4 @@ Parser.fsi
 sandbox/
 _ReSharper*
 *.pyc
+*.user

@@ -1,4 +1,4 @@
-﻿%{
+%{
 
 open Tree
 
@@ -7,7 +7,7 @@ open Tree
 %token<int>    INT
 %token<string> IDENT
 %token         ADD SUB DIV MUL LPAR RPAR EOF PRINT COMMA 
-%token         RETURN LCURLY RCURLY SEMI START PROC
+%token         RETURN LCURLY RCURLY SEMI START PROC EQUALS LET IN
 
 %type<Program> program
 %start program
@@ -43,6 +43,7 @@ stmts:
 
 stmt:
     | PRINT expr                    { Print $2 }
+    | IDENT EQUALS expr             { Assign ($1, $3) }
     | RETURN expr                   { Return $2 }
 
 expr:

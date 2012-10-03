@@ -8,7 +8,11 @@ let rec fmt_list(x):string =
     let union, fields = FSharpValue.GetUnionFields(x, t)
     match union.Name with
         | "Empty" -> ""
-        | "Cons"  -> sprintf "%s; %s" (fmt fields.[0]) (fmt_list fields.[1])
+        | "Cons"  -> 
+            let current = fmt fields.[0]
+            let next = fmt_list fields.[1]
+            if next.Equals("") then current
+            else sprintf "%s; %s" current next
 
 and fmt(x):string =
     let t = x.GetType()

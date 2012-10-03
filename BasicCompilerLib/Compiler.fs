@@ -23,6 +23,7 @@ let lex (lexbuf:LexBuffer<_>) =
     let sb = new StringBuilder()
     while not lexbuf.IsPastEndOfStream do
         sb.Append(Lexer.token lexbuf |> fmt) |> ignore
+        sb.Append(' ') |> ignore
     sb.ToString()
 
 let lexText text = lex <| stringToLexbuf text

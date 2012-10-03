@@ -38,3 +38,4 @@ rule token = parse
     | '*'                   { MUL }
     | ';'                   { SEMI }
     | ','                   { COMMA }
+    | '='                   { EQUALS }
