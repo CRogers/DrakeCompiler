@@ -1,10 +1,12 @@
-﻿$ ->
+﻿editor = null
+
+$ ->
 	loadTest = (name) ->
 		$.ajax
 			type: 'GET'
 			url: '/api/tests/' + name
 			success: (data) ->
-				$('#source-text').text data
+				editor.setValue(data, -1)
 
 	reloadTests = ->
 		$.ajax
@@ -41,4 +43,9 @@
 
 	# compile it
 	$('#compile-btn').click (e) ->
-		compile $('#source-text').val()
+		compile editor.getValue()
+
+	# ace stuff
+	editor = ace.edit 'source-text'
+	editor.setTheme 'ace/theme/chrome'
+	editor.setShowPrintMargin(false)
