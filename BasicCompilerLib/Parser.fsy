@@ -5,8 +5,8 @@ open Tree
 let sp (itemA:Annot<_>) = itemA.Pos.StartPos
 let ep (itemA:Annot<_>) = itemA.Pos.EndPos
 
-let v = snd
-let p = fst
+let v = snd<Pos,_>
+let p = fst<Pos,_>
 let markers (lpos:Pos) (rpos:Pos) = Pos(lpos.StartPos, rpos.EndPos)
 
 (*annotate*)
@@ -37,13 +37,13 @@ let amaa item (leftA:Annot<_>) (rightA:Annot<_>) = ambb item leftA.Pos rightA.Po
 program: decls EOF                  { $1 }
 
 decls:
-    | procDecls START block         { amba (Proc ("main", [], Unit, $3)) $2 (Seq.last $3) :: $1 }
+    | procDecls START block         { ambb (Proc ("main", [], Unit, v $3)) $2 (p $3) :: $1 }
 
 
 procDecls:
     | /* empty */                   { [] }
     | PROC IDENT LPAR paramList RPAR returnType block procDecls
-        { amba (Proc (v $2, $4, $6, $7)) $1 (Seq.last $7) :: $8 }
+        { ambb (Proc (v $2, $4, $6, v $7)) $1 (p $7) :: $8 }
 
 returnType:
     | /* empty */                   { Unit }
@@ -58,7 +58,7 @@ param:
     | IDENT COLON IDENT             { Param (v $1, parsePType <| v $3) }
 
 block:
-    | LCURLY stmts RCURLY           { $2 }
+    | LCURLY stmts RCURLY           { (Pos($1.StartPos, $3.EndPos), $2) }
 
 stmts:
     | /* empty */                   { [] }

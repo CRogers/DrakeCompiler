@@ -40,6 +40,7 @@ def getScript(name=''):
 
 	path = 'web/scripts/' + name
 	coffeePath = re.sub('.js', '.coffee', path)
+	print("ispath: " + path + " : " + str(os.path.isfile(path)))
 	if os.path.isfile(path):
 		return static_file(name, 'web/scripts/')
 	elif os.path.isfile(coffeePath):
