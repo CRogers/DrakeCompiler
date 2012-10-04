@@ -2,6 +2,7 @@ module Tree
 
 open Print
 open LLVM.Generated.Core
+open Microsoft.FSharp.Text.Lexing
 open System.Collections.Generic
 open System
 
@@ -16,10 +17,16 @@ let parsePType str = match str with
     | "Int" -> Int
     | "Bool" -> Bool
 
-type Annot<'a>(item:'a) =
+type Pos(startPos:Position, endPos:Position) =
+    member x.StartPos = startPos
+    member x.EndPos = endPos
+    override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
+
+type Annot<'a>(item:'a, pos:Pos) =
+    member x.Pos = pos
     member x.Item = item
     member val PType = Undef with get, set
-    override x.ToString() = fmt x.Item + match x.PType with
+    override x.ToString() = fmt x.Item + ":" + x.Pos.ToString() + match x.PType with
         | Undef -> ""
         | _ -> ":" + fmt x.PType
 

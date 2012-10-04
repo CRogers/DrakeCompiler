@@ -2,12 +2,28 @@
 
 open Tree
 
+let sp (itemA:Annot<_>) = itemA.Pos.StartPos
+let ep (itemA:Annot<_>) = itemA.Pos.EndPos
+
+let v = snd
+let p = fst
+let markers (lpos:Pos) (rpos:Pos) = Pos(lpos.StartPos, rpos.EndPos)
+
+(*annotate*)
+let a item pos = Annot(item, pos)
+(*annotate using markers*)
+let ambb item lpos rpos = Annot(item, markers lpos rpos)
+let amba item lpos (rightA:Annot<_>) = ambb item lpos rightA.Pos
+let amab item (leftA:Annot<_>) rpos = ambb item leftA.Pos rpos
+(*annotate using markers that are annotated*)
+let amaa item (leftA:Annot<_>) (rightA:Annot<_>) = ambb item leftA.Pos rightA.Pos
+
 %}
 
-%token<int>    CONSTINT
-%token<string> IDENT
-%token         ADD SUB DIV MUL LPAR RPAR EOF PRINT COMMA COLON
-%token         RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
+%token<(Pos * int)>    CONSTINT
+%token<(Pos * string)> IDENT
+%token<Pos>            ADD SUB DIV MUL LPAR RPAR EOF PRINT COMMA COLON
+%token<Pos>            RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
 
 %type<Program> program
 %start program
@@ -21,17 +37,17 @@ open Tree
 program: decls EOF                  { $1 }
 
 decls:
-    | procDecls START block         { Annot (Proc ("main", [], Unit, $3)) :: $1 }
+    | procDecls START block         { amba (Proc ("main", [], Unit, $3)) $2 (Seq.last $3) :: $1 }
 
 
 procDecls:
     | /* empty */                   { [] }
     | PROC IDENT LPAR paramList RPAR returnType block procDecls
-        { Annot (Proc ($2, $4, $6, $7)) :: $8 }
+        { amba (Proc (v $2, $4, $6, $7)) $1 (Seq.last $7) :: $8 }
 
 returnType:
     | /* empty */                   { Unit }
-    | COLON IDENT                   { parsePType $2 }
+    | COLON IDENT                   { parsePType <| v $2 }
 
 paramList:
     | /* empty */                   { [] }
@@ -39,7 +55,7 @@ paramList:
     | param COMMA paramList         { $1 :: $3 }
 
 param:
-    | IDENT COLON IDENT             { Param ($1, parsePType $3) }
+    | IDENT COLON IDENT             { Param (v $1, parsePType <| v $3) }
 
 block:
     | LCURLY stmts RCURLY           { $2 }
@@ -49,19 +65,27 @@ stmts:
     | stmt SEMI stmts               { $1 :: $3 }
 
 stmt:
-    | PRINT expr                    { Annot (Print $2) }
-    | IDENT EQUALS expr             { Annot (Assign ($1, $3)) }
-    | RETURN expr                   { Annot (Return $2) }
+    | PRINT expr                    { amba (Print $2) $1 $2 }
+    | IDENT EQUALS expr             { amba (Assign (v $1, $3)) (p $1) $3 }
+    | RETURN expr                   { amba (Return $2) $1 $2 }
 
 expr:
-    | CONSTINT                      { Annot (ConstInt $1) }
-    | expr ADD expr                 { Annot (Binop (Add, $1, $3)) }
-    | expr SUB expr                 { Annot (Binop (Sub, $1, $3)) }
-    | expr DIV expr                 { Annot (Binop (Div, $1, $3)) }
-    | expr MUL expr                 { Annot (Binop (Mul, $1, $3)) }
-    | IDENT LPAR argList RPAR       { Annot (Call ($1, $3)) }
-	| IDENT							{ Annot (Var $1) }
-    | LPAR expr RPAR                { $2 }
+    | CONSTINT
+        { a (ConstInt (v $1)) (p $1) }
+    | expr ADD expr
+        { amaa (Binop (Add, $1, $3)) $1 $3 }
+    | expr SUB expr
+        { amaa (Binop (Sub, $1, $3)) $1 $3 }
+    | expr DIV expr
+        { amaa (Binop (Div, $1, $3)) $1 $3 }
+    | expr MUL expr
+        { amaa (Binop (Mul, $1, $3)) $1 $3 }
+    | IDENT LPAR argList RPAR       
+        { ambb (Call (v $1, $3)) (p $1) $4 }
+	| IDENT
+        { a (Var (v $1)) (p $1) }
+    | LPAR expr RPAR
+        { $2 }
 
 argList:
     | /* empty */                   { [] }
