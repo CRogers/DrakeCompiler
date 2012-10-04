@@ -1,4 +1,4 @@
-﻿editor = null
+editor = null
 
 $ ->
 	loadTest = (name) ->
