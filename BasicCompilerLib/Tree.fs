@@ -4,6 +4,7 @@ open Print
 open LLVM.Generated.Core
 open Microsoft.FSharp.Text.Lexing
 open System.Collections.Generic
+open System.Collections.ObjectModel
 open System
 
 type Op = 
@@ -22,13 +23,29 @@ type Pos(startPos:Position, endPos:Position) =
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
+type Ref(name:string, ptype:PType) =
+    member x.Name = name
+    member x.PType = ptype
+    override x.ToString() = sprintf "%s:%s" x.Name (fmt x.PType)
+
 type Annot<'a>(item:'a, pos:Pos) =
+    let vars = Dictionary<string,Ref>()
+    
+    member x.GetRef(name:string) = vars.[name]
+    member x.AddRef(ref:Ref) = vars.[ref.Name] <- ref
+    member x.AddRefs(refs:IDictionary<string,Ref>) = Seq.iter (fun (kvp:KeyValuePair<string,Ref>) -> vars.Add(kvp.Key, kvp.Value)) refs
+    member x.Refs:IDictionary<string,Ref> = upcast ReadOnlyDictionary(vars)
+
     member x.Pos = pos
     member x.Item = item
     member val PType = Undef with get, set
-    override x.ToString() = fmt x.Item + ":" + x.Pos.ToString() + match x.PType with
-        | Undef -> ""
-        | _ -> ":" + fmt x.PType
+
+    override x.ToString() = fmt x.Item + 
+        ":" + x.Pos.ToString() +
+        ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)
+        + match x.PType with
+            | Undef -> ""
+            | _ -> ":" + fmt x.PType
 
 type Expr =
     | ConstInt of int
