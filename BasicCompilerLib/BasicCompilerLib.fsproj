@@ -53,15 +53,18 @@
   <ItemGroup>
     <Compile Include="Print.fs" />
     <Compile Include="Tree.fs" />
+    <Compile Include="Exceptions.fs" />
     <Compile Include="Parser.fs" />
     <None Include="Parser.fsy" />
     <Compile Include="Lexer.fs" />
     <None Include="Lexer.fsl" />
     <Compile Include="LLVM-Test.fs" />
     <Compile Include="Gen.fs" />
+    <Compile Include="Builtins.fs" />
+    <None Include="Builtins.fs.pyex" />
+    <Compile Include="Check.fs" />
     <Compile Include="Annotate.fs" />
     <Compile Include="Compiler.fs" />
-    <Compile Include="Program.fs" />
     <None Include="App.config" />
   </ItemGroup>
   <PropertyGroup>
@@ -69,7 +72,10 @@
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets" Condition=" Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')" />
   <PropertyGroup>
-    <PreBuildEvent>"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
+    <PreBuildEvent>python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Parser.fsy.pyex" &gt;"$(ProjectDir)\Parser.fsy"
+python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Lexer.fsl.pyex" &gt;"$(ProjectDir)\Lexer.fsl"
+python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Builtins.fs.pyex" &gt;"$(ProjectDir)\Builtins.fs"
+"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
 "$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser</PreBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

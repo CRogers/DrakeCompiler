@@ -9,7 +9,7 @@ import coffeescript
 import tempfile
 
 TESTSDIR = '../tests/'
-COMPILERLOC = "bin/BasicCompiler"
+COMPILERLOC = "../BasicCompiler/bin/Debug/BasicCompiler.exe"
 
 def run(program, args):
 	print(program + ' ' + args)
@@ -72,13 +72,18 @@ def postCompiler():
 	llvm = run(COMPILERLOC, '-s -v ' + tmp)
 	asm = run(COMPILERLOC, '-s -a ' + tmp)
 
-	os.remove(tmp)
+	fd = os.open(tmp, os.O_WRONLY)
+	os.write(fd, llvm)
+	os.close(fd)
+	exe = run('lli', tmp)
+	os.remove(tmp)	
 
 	return json.dumps({
 		'lexer':lexer,
 		'parser':parser,
 		'parserAnnot':parserAnnot,
 		'llvm':llvm,
-		'asm':asm})
+		'asm':asm,
+		'exe':exe})
 
 bottle.run(host='localhost', port='8900')

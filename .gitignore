@@ -2,10 +2,14 @@
 *.suo
 bin/
 obj/
+Builtins.fs
 Lexer.fs
+Lexer.fsl
 Parser.fs
+Parser.fsy
 Parser.fsi
 sandbox/
 _ReSharper*
 *.pyc
 *.user
+*.fsyacc*

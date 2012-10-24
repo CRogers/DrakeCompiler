@@ -41,11 +41,11 @@ namespace BasicCompiler
 
     class Program
     {
-        static void Main(string[] args)
+        static void Main(string[] arguements)
         {
             var options = new Options();
             var parser = new CommandLineParser();
-            if (parser.ParseArguments(args, options)) {
+            if (parser.ParseArguments(arguements, options)) {
                 string input = File.ReadAllText(options.Files[0]);
 
                 string output = "No output selected!";
@@ -59,18 +59,36 @@ namespace BasicCompiler
                     output = Print.fmt(Annotate.annotate(Compiler.parseText(input)));
                 }
                 else if (options.EmitLLVM || options.EmitASM) {
-                    var module = Compiler.compile(input);
+                    var compilerResult = Compiler.compile(input);
                     using (var tmpBc = new TmpFile())
                     using (var tmpOut = new TmpFile()) {
-                        Compiler.writeModuleToFile(tmpBc.FilePath, module);
+                        if (compilerResult.Success) {
+                            Compiler.writeModuleToFile(tmpBc.FilePath, compilerResult.Module);
 
-                        var program = options.EmitLLVM ? "llvm-dis" : "llc";
-                        var argsFmt = options.EmitLLVM ? "-o={0} {1}" : "-x86-asm-syntax=intel -o={0} {1}";
-                        var proc = Process.Start(program, string.Format(argsFmt, tmpOut.FilePath, tmpBc.FilePath));
-                        proc.WaitForExit();
+                            var program = options.EmitLLVM ? "llvm-dis" : "llc";
+                            var argsFmt = options.EmitLLVM ? "-o={0} {1}" : "-x86-asm-syntax=intel -o={0} {1}";
+                            var si = new ProcessStartInfo(program, string.Format(argsFmt, tmpOut.FilePath, tmpBc.FilePath))
+                                     {
+                                         CreateNoWindow = true,
+                                         UseShellExecute = false,
+                                         RedirectStandardOutput = true,
+                                         RedirectStandardError = true
+                                     };
+                            var proc = Process.Start(si);
+                            proc.OutputDataReceived += (sender, args) => Console.WriteLine(args.Data);
+                            proc.BeginOutputReadLine();
+                            proc.ErrorDataReceived += (sender, args) => Console.WriteLine(args.Data);
+                            proc.BeginErrorReadLine();
+                            proc.WaitForExit();
 
-                        output = File.ReadAllText(tmpOut.FilePath);
+                            output = File.ReadAllText(tmpOut.FilePath);
+                        }
+                        else {
+                            output = String.Concat(compilerResult.GetErrorText());
+                        }
+
                     }
+
                 }
 
                 if (options.Stdout) {

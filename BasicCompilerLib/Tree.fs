@@ -9,7 +9,8 @@ open System
 
 type Op = 
     | Add | Sub | Mul | Div
-    | And | Or | Not
+    | BoolAnd | BoolOr | Not
+    | Lt | Gt | LtEq | GtEq | Eq
 
 type PType = Undef | Unit | Int | Bool
 
@@ -40,12 +41,12 @@ type Annot<'a>(item:'a, pos:Pos) =
     member x.Item = item
     member val PType = Undef with get, set
 
-    override x.ToString() = fmt x.Item + 
-        ":" + x.Pos.ToString() +
-        ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)
-        + match x.PType with
-            | Undef -> ""
-            | _ -> ":" + fmt x.PType
+    override x.ToString() = fmt x.Item + match x.PType with
+        | Undef -> ""
+        | _ -> ":" + fmt x.PType
+        (*":" + x.Pos.ToString() +
+        ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
+        
 
 type Expr =
     | ConstInt of int
@@ -60,8 +61,9 @@ type Stmt =
     | Print of ExprA
     | Assign of string * ExprA
     | Return of ExprA
+    | If of ExprA * list<StmtA> * list<StmtA> 
 
-type StmtA = Annot<Stmt>
+and StmtA = Annot<Stmt>
 
 type Param(name: string, ptype: PType) =
     member x.Name = name
@@ -80,13 +82,14 @@ type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) =
     member x.Func = func
     member x.Params = params
 
-type Environ(enclosingFunc: Func) =
+type Environ(module_: ModuleRef, enclosingFunc: Func) =
     let refs = new Dictionary<string, ValueRef>()
     let icount = new Dictionary<string, int>()
 
     do
         Map.iter (fun k v -> refs.Add(k, v)) enclosingFunc.Params
 
+    member x.Module = module_
     member x.EnclosingFunc = enclosingFunc
     member x.AddRef(name, vr) = refs.[name] <- vr
     member x.GetRef(name) = refs.[name]

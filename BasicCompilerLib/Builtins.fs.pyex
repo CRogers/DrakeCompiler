@@ -1,0 +1,19 @@
+﻿module Builtins
+
+open Tree
+
+$py(numeric=['Add','Sub','Div','Mul'])\
+$py(numcomp=['Lt','Gt','LtEq','GtEq','Eq'])\
+$py(boolean=['BoolAnd', 'BoolOr'])\
+
+let binopToType binop ltype rtype = match (binop, ltype, rtype) with
+$for(x in numeric)\
+    | ($(x), Int, Int) -> Some Int
+$endfor\
+$for(x in numcomp)\
+    | ($(x), Int, Int) -> Some Bool
+$endfor\
+$for(x in boolean)\
+    | ($(x), Bool, Bool) -> Some Bool
+$endfor\
+    | _ -> None

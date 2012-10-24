@@ -2,6 +2,7 @@
 
 open Tree
 open Print
+open Exceptions
 open Printf
 open Lexer
 open Parser
@@ -9,6 +10,7 @@ open Microsoft.FSharp.Text.Lexing
 open System
 open System.Text
 open System.IO
+open LLVM.Generated.Core
 open LLVM.Generated.BitWriter
 
 
@@ -29,29 +31,32 @@ let lex (lexbuf:LexBuffer<_>) =
 let lexText text = lex <| stringToLexbuf text
 let lexFile file = lex <| fileToLexbuf file
 
-let trimTabs (str:string) = str.TrimStart(Seq.toArray ['\t'])
-
 let parse (text: array<string>) =
     let lexbuf = stringToLexbuf <| String.Join ("\n", text)
     try
         Parser.program Lexer.token lexbuf
     with
         | ex ->
-            let line = lexbuf.StartPos.Line 
-            let col = lexbuf.StartPos.Column
-            printfn "Parse error at line %d, column %d at token %s" (line+1) col (Lexer.lexeme lexbuf)
-            let sourceLine = Seq.nth line text
-            let unpaddedLine = trimTabs sourceLine
-            let unpaddedSpacer = "".PadRight(col - (sourceLine.Length - unpaddedLine.Length))
-            printfn "%s\n%s^" unpaddedLine unpaddedSpacer
+            let error = Error("Parse error", Pos(lexbuf.StartPos, lexbuf.EndPos))
+            printError text error
             []
 
 let parseFile file = parse (File.ReadAllLines file)
 let parseText (text: string) = parse <| text.Split('\n')
 
-let compile text =
-    let parsed = parseText text
+type CompilerResult(textLines: array<string>, errors: list<Error>, llvmModule: ModuleRef) =
+    member x.Errors = errors
+    member x.Success = errors.Length = 0
+    member x.PrintErrors() = Seq.iter (printError textLines) errors
+    member x.GetErrorText() = Seq.map (errorText textLines) errors
+    member x.Module = llvmModule
+
+let compile (text:string) =
+    let textLines = text.Split('\n')
+    let parsed = parse textLines
     let annotated = Annotate.annotate parsed
-    Gen.gen parsed
+    let checkErrors = Check.check annotated
+    let llvmModule = Gen.gen annotated
+    CompilerResult(textLines, checkErrors, llvmModule)
 
 let writeModuleToFile fileName mo = writeBitcodeToFile mo fileName

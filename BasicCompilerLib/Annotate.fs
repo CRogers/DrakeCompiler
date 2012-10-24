@@ -1,38 +1,65 @@
 ﻿module Annotate
 
+open System.Collections.Generic
 open Print
 open Tree
+open Builtins
 
-let rec annotateTypesExpr (exprA:ExprA) = 
+type AnnotateEnviron() =
+    let vars = new Dictionary<string, PType>();
+    let funcMod func = "<>func_" + func
+
+    member x.GetVarType(var) = vars.[var]
+    member x.SetVarType(var, ptype) = vars.[var] <- ptype
+
+    member x.GetFunctionType(func) = vars.[funcMod func]
+    member x.SetFunctionType(func, ptype) = vars.[funcMod func] <- ptype
+
+    member x.Clone() =
+        let ae = new AnnotateEnviron()
+        Seq.iter (fun (kvp:KeyValuePair<string, PType>) -> ae.SetVarType(kvp.Key, kvp.Value) |> ignore) vars
+        ae
+
+let rec annotateTypesExpr (env:AnnotateEnviron) (exprA:ExprA) = 
     exprA.PType <- match exprA.Item with
         | ConstInt _ ->  Int
         | ConstBool _ -> Bool
-        | Var _ -> Int
+        | Var n -> env.GetVarType(n)
         | Binop (op, l, r) ->
-            annotateTypesExpr l
-            annotateTypesExpr r
-            if l.PType <> r.PType then
-                failwithf "Both sides of the binary operation need to have the same type:\n%s" (fmt exprA.Item)
+            annotateTypesExpr env l
+            annotateTypesExpr env r
+            let type_ = binopToType op l.PType r.PType
+            if type_ = None then
+                failwithf "Incorrect type for binary operation:\n%s" (fmt exprA.Item)
             else
-                l.PType
-        | Call (_, exprAs) ->
-            Seq.iter annotateTypesExpr exprAs
-            Int
+                type_.Value
+        | Call (name, exprAs) ->
+            Seq.iter (annotateTypesExpr env) exprAs
+            env.GetFunctionType(name)
 
-let annotateTypesStmt (stmtA:StmtA) = 
+let rec annotateTypesStmt env (stmtA:StmtA) = 
     stmtA.PType <- match stmtA.Item with
         | Print exprA ->
-            annotateTypesExpr exprA
+            annotateTypesExpr env exprA
             Unit
-        | Assign (_, exprA) -> 
-            annotateTypesExpr exprA
+        | Assign (var, exprA) ->
+            annotateTypesExpr env exprA
+            env.SetVarType(var, exprA.PType)
             exprA.PType
         | Return exprA ->
-            annotateTypesExpr exprA
+            annotateTypesExpr env exprA
+            Unit
+        | If (exprA, then_, else_) ->
+            annotateTypesExpr env exprA
+            Seq.iter (annotateTypesStmt env) then_
+            Seq.iter (annotateTypesStmt env) else_
             Unit
 
-let annotateTypesDecl (declA:DeclA) = match declA.Item with
-    | Proc (_, _, _, stmts) -> Seq.iter annotateTypesStmt stmts
+let annotateTypesDecl (env:AnnotateEnviron) (declA:DeclA) = match declA.Item with
+    | Proc (_, params_, _, stmts) -> 
+        let fenv = env.Clone()
+        Seq.iter (fun (p:Param) -> fenv.SetVarType(p.Name, p.PType) |> ignore) params_
+        Seq.iter (annotateTypesStmt fenv) stmts
 
 
 let rec annotateVarsExpr refs (exprA:ExprA) =
@@ -63,8 +90,20 @@ let annotateVarsDecl (declA:DeclA) = match declA.Item with
         Seq.iter (annotateVarsStmt declA) stmts
     
 
-let annotate (program:Program) = 
+let annotate (program:Program) =
+
+    // Create initial environment where all the functions return types have been added
+    let env0 = new AnnotateEnviron()
+    Seq.fold (fun (env:AnnotateEnviron) (declA:DeclA) ->
+        match declA.Item with
+            | Proc (name, _, returnType, _) ->
+                declA.PType <- returnType
+                env.SetFunctionType(name, returnType)
+        env) env0 program
+    |> ignore
+
+    // Do a series of annotation passes
     Seq.iter (fun d -> 
-        annotateTypesDecl d
+        annotateTypesDecl env0 d
         annotateVarsDecl d) program
     program
