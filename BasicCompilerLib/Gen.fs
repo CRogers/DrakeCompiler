@@ -74,7 +74,7 @@ let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
         | Var name ->
             env.GetRef(name)
 
-let genStmt bldr (env:Environ) (stmtA:StmtA) =
+let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
     match stmtA.Item with
         | Print e -> 
             let expr = genExpr bldr env "print" e
@@ -87,10 +87,28 @@ let genStmt bldr (env:Environ) (stmtA:StmtA) =
             expr
         | Return e ->
             let expr = genExpr bldr env "return" e
-            let ret = buildRet bldr expr
-            let md = mDString ("cat" + System.DateTime.Now.Ticks.ToString()) 3u
-            ret 
+            buildRet bldr expr
+        | If (e, thenStmtAs, elseStmtAs) ->
+            let func = env.EnclosingFunc.Func
+            let ifthen = appendBasicBlock func "ifthen"
+            let ifelse = appendBasicBlock func "ifelse"
+            let ifcont = appendBasicBlock func "ifcont"
+            // If
+            let expr = genExpr bldr env "if" e
+            buildCondBr bldr expr ifthen ifelse |> ignore
+            // Then
+            positionBuilderAtEnd bldr ifthen
+            genStmts bldr env thenStmtAs
+            buildBr bldr ifcont |> ignore
+            // Else
+            positionBuilderAtEnd bldr ifelse
+            genStmts bldr env elseStmtAs
+            buildBr bldr ifcont |> ignore
+            // Cont
+            positionBuilderAtEnd bldr ifcont
+            new ValueRef(nativeint 0xDEADBEEF)
 
+and genStmts bldr env stmts = Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
 
 let genDecl module_ (declA:DeclA) = match declA.Item with
     | Proc (name, _, _, stmts) ->
@@ -98,7 +116,7 @@ let genDecl module_ (declA:DeclA) = match declA.Item with
         let env = Environ(module_, func)
         use bldr = new Builder()
         positionBuilderAtEnd bldr (appendBasicBlock func.Func "entry")
-        Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
+        genStmts bldr env stmts
 
 let defineDecl myModule (declA:DeclA) = match declA.Item with
     | Proc (name, params, returnType, _) ->

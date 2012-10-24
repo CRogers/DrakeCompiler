@@ -72,7 +72,7 @@ let rec annotateVarsExpr refs (exprA:ExprA) =
         | Call (_, exprAs) -> Seq.iter annotateExpr exprAs
         | _ -> ()
 
-let annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
+let rec annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
     stmtA.AddRefs(declA.Refs)
     let annotateExpr = annotateVarsExpr stmtA.Refs
     match stmtA.Item with
@@ -81,6 +81,10 @@ let annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
             annotateExpr exprA
         | Print exprA -> annotateExpr exprA
         | Return exprA -> annotateExpr exprA
+        | If (exprA, thenStmtAs, elseStmtAs) ->
+            annotateExpr exprA
+            Seq.iter (annotateVarsStmt declA) thenStmtAs
+            Seq.iter (annotateVarsStmt declA) elseStmtAs
 
 let annotateVarsDecl (declA:DeclA) = match declA.Item with
     | Proc (_, prms, _, stmts) ->
