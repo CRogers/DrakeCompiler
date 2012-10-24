@@ -24,9 +24,13 @@ type Pos(startPos:Position, endPos:Position) =
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
-type Ref(name:string, ptype:PType) =
+type RefType = Local | Parameter
+
+type Ref(name:string, ptype:PType, reftype: RefType) =
     member x.Name = name
     member x.PType = ptype
+    member x.RefType = reftype
+    member val ValueRef = new ValueRef(nativeint 0xDEAD0000) with get, set
     override x.ToString() = sprintf "%s:%s" x.Name (fmt x.PType)
 
 type Annot<'a>(item:'a, pos:Pos) =

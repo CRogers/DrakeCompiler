@@ -45,7 +45,6 @@ let typeToLLVMType t = match t with
     | Int  -> i32
 
 let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
-    let llvmname = if irname.Equals("") then env.GetTmp() else env.GetName irname
     match exprA.Item with
         | ConstInt x ->
             mkConst x
@@ -65,28 +64,33 @@ let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
                 | LtEq ->       bIcmp IntPredicate.IntSLE 
                 | GtEq ->       bIcmp IntPredicate.IntSGE 
                 | Eq ->         bIcmp IntPredicate.IntEQ
-            buildFunc bldr (genExpr bldr env "" left) (genExpr bldr env "" right) llvmname
+            buildFunc bldr (genExpr bldr env "" left) (genExpr bldr env "" right) irname
             
         | Call (name, args) ->
             let funcToCall = globalFuncs.[name]
             let argRefs = Seq.map (genExpr bldr env "") args |> Seq.toArray
-            buildCall bldr funcToCall.Func argRefs llvmname
+            buildCall bldr funcToCall.Func argRefs irname
         | Var name ->
-            env.GetRef(name)
+            let ref = exprA.GetRef(name)
+            match ref.RefType with
+                | Parameter -> ref.ValueRef
+                | Local     -> buildLoad bldr ref.ValueRef name
 
 let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
     match stmtA.Item with
         | Print e -> 
-            let expr = genExpr bldr env "print" e
-            let mexpr = if e.PType = Bool then buildZExt bldr expr i32 "convert" else expr
+            let expr = genExpr bldr env "print." e
+            let mexpr = if e.PType = Bool then buildZExt bldr expr i32 "convert." else expr
             let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (env.GetTmp())
             buildCall bldr globals.["printf"] [| gep; mexpr |] <| env.GetTmp()
         | Assign (name, e) ->
+            let varpointer = buildAlloca bldr (typeToLLVMType e.PType) name
             let expr = genExpr bldr env name e
-            env.AddRef(name, expr)
+            buildStore bldr expr varpointer |> ignore
+            stmtA.GetRef(name).ValueRef <- varpointer
             expr
         | Return e ->
-            let expr = genExpr bldr env "return" e
+            let expr = genExpr bldr env "return." e
             buildRet bldr expr
         | If (e, thenStmtAs, elseStmtAs) ->
             let func = env.EnclosingFunc.Func
@@ -130,6 +134,7 @@ let defineDecl myModule (declA:DeclA) = match declA.Item with
         let paramMapSeq = Seq.map (fun i -> 
             let paramName = params.[i].Name
             let llvmParam = getParam func <| uint32 i
+            declA.GetRef(paramName).ValueRef <- llvmParam
             // Set the function param name and return a tuple for the map
             setValueName llvmParam paramName
             (paramName, llvmParam)) [0..numParams-1]

@@ -77,7 +77,9 @@ let rec annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
     let annotateExpr = annotateVarsExpr stmtA.Refs
     match stmtA.Item with
         | Assign (name, exprA) ->
-            declA.AddRef(Ref(name, exprA.PType))
+            let ref = Ref(name, exprA.PType, Local)
+            declA.AddRef(ref)
+            stmtA.AddRef(ref)
             annotateExpr exprA
         | Print exprA -> annotateExpr exprA
         | Return exprA -> annotateExpr exprA
@@ -89,7 +91,7 @@ let rec annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
 let annotateVarsDecl (declA:DeclA) = match declA.Item with
     | Proc (_, prms, _, stmts) ->
         // Add the parameters
-        Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType))) prms
+        Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) prms
         // Propagate params to stmts
         Seq.iter (annotateVarsStmt declA) stmts
     
