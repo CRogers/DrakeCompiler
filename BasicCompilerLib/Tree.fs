@@ -12,7 +12,8 @@ type Op =
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
 
-type PType = Undef | Unit | Int | Bool
+type PType = Undef | Unit | Int | Bool with
+    override x.ToString() = fmt x
 
 let parsePType str = match str with
     | "Unit" -> Unit
@@ -33,13 +34,20 @@ type Ref(name:string, ptype:PType, reftype: RefType) =
     member val ValueRef = new ValueRef(nativeint 0xDEAD0000) with get, set
     override x.ToString() = sprintf "%s:%s" x.Name (fmt x.PType)
 
+type SRP = KeyValuePair<string, Ref>
+
 type Annot<'a>(item:'a, pos:Pos) =
     let vars = Dictionary<string,Ref>()
-    
+    let filterRefs refType =
+        Seq.filter (fun (kvp:SRP) -> kvp.Value.RefType = Local) vars
+        |> Seq.map (fun (kvp:SRP) -> kvp.Value)
+
     member x.GetRef(name:string) = vars.[name]
     member x.AddRef(ref:Ref) = vars.[ref.Name] <- ref
-    member x.AddRefs(refs:IDictionary<string,Ref>) = Seq.iter (fun (kvp:KeyValuePair<string,Ref>) -> vars.Add(kvp.Key, kvp.Value)) refs
+    member x.AddRefs(refs:IDictionary<string,Ref>) = Seq.iter (fun (kvp:SRP) -> vars.Add(kvp.Key, kvp.Value)) refs
     member x.Refs:IDictionary<string,Ref> = upcast ReadOnlyDictionary(vars)
+    member x.LocalRefs with get () = filterRefs Local
+    member x.ParamRefs with get () = filterRefs Parameter
 
     member x.Pos = pos
     member x.Item = item
@@ -58,14 +66,17 @@ type Expr =
     | Binop of Op * ExprA * ExprA
     | Call of string * list<ExprA>
     | Var of string
+    | Assign of string * ExprA
 
 and ExprA = Annot<Expr>
 
 type Stmt =
     | Print of ExprA
-    | Assign of string * ExprA
+    | DeclVar of string * (*Assign*) ExprA
     | Return of ExprA
-    | If of ExprA * list<StmtA> * list<StmtA> 
+    | If of ExprA * list<StmtA> * list<StmtA>
+    | While of ExprA * list<StmtA>
+    | LoneExpr of ExprA
 
 and StmtA = Annot<Stmt>
 

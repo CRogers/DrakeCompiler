@@ -1,17 +1,19 @@
 editor = null
 
 $ ->
+	modifyingQS = (url) -> "#{url}?#{Date.now()}"
+
 	loadTest = (name) ->
 		$.ajax
 			type: 'GET'
-			url: '/api/tests/' + name
+			url: modifyingQS ('/api/tests/' + name)
 			success: (data) ->
 				editor.setValue(data, -1)
 
 	reloadTests = ->
 		$.ajax
 			type: 'GET'
-			url: '/api/tests'
+			url: modifyingQS  '/api/tests'
 			success: (data) ->
 				$ddm = $('#test-dropdown')
 				$ddm.empty()
@@ -27,7 +29,7 @@ $ ->
 			data:
 				code: code
 			dataType: 'json'
-			url: '/api/compiler'
+			url: modifyingQS '/api/compiler'
 			success: (data) ->
 				for k, v of data
 					$('#'+k+'-output').text v

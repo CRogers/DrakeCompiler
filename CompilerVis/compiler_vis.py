@@ -55,6 +55,7 @@ def getTests():
 
 @get('/api/tests/<name>')
 def getTest(name=''):
+	print 'returning test ' + TESTSDIR + '/' + name 
 	return static_file(name, TESTSDIR)
 
 @post('/api/compiler')

@@ -75,6 +75,11 @@ let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
             match ref.RefType with
                 | Parameter -> ref.ValueRef
                 | Local     -> buildLoad bldr ref.ValueRef name
+        | Assign (name, e) ->
+            let expr = genExpr bldr env "" e
+            let valref = exprA.GetRef(name).ValueRef
+            buildStore bldr expr valref
+            
 
 let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
     match stmtA.Item with
@@ -82,16 +87,17 @@ let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
             let expr = genExpr bldr env "print." e
             let mexpr = if e.PType = Bool then buildZExt bldr expr i32 "convert." else expr
             let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (env.GetTmp())
-            buildCall bldr globals.["printf"] [| gep; mexpr |] <| env.GetTmp()
-        | Assign (name, e) ->
-            let varpointer = buildAlloca bldr (typeToLLVMType e.PType) name
-            let expr = genExpr bldr env name e
-            buildStore bldr expr varpointer |> ignore
+            buildCall bldr globals.["printf"] [| gep; mexpr |] <| env.GetTmp() |> ignore
+        | DeclVar (name, assignA) ->
+            let pointerType = typeToLLVMType stmtA.PType
+            let varpointer = buildAlloca bldr pointerType name
             stmtA.GetRef(name).ValueRef <- varpointer
-            expr
+            genExpr bldr env name assignA |> ignore
         | Return e ->
             let expr = genExpr bldr env "return." e
-            buildRet bldr expr
+            buildRet bldr expr |> ignore
+        | LoneExpr e ->
+            genExpr bldr env "" e |> ignore
         | If (e, thenStmtAs, elseStmtAs) ->
             let func = env.EnclosingFunc.Func
             let ifthen = appendBasicBlock func "ifthen"
@@ -110,7 +116,23 @@ let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
             buildBr bldr ifcont |> ignore
             // Cont
             positionBuilderAtEnd bldr ifcont
-            new ValueRef(nativeint 0xDEADBEEF)
+        | While (e, stmtAs) ->
+            let func = env.EnclosingFunc.Func
+            let whilebody = appendBasicBlock func "whilebody"
+            let whiletest = appendBasicBlock func "whiletest"
+            let whilecont = appendBasicBlock func "whilecont"
+            // Jump to test
+            buildBr bldr whiletest |> ignore
+            // Body
+            positionBuilderAtEnd bldr whilebody
+            genStmts bldr env stmtAs
+            buildBr bldr whiletest |> ignore
+            // Test
+            positionBuilderAtEnd bldr whiletest
+            let expr = genExpr bldr env "while" e
+            buildCondBr bldr expr whilebody whilecont |> ignore
+            // Cont
+            positionBuilderAtEnd bldr whilecont
 
 and genStmts bldr env stmts = Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
 
@@ -120,6 +142,9 @@ let genDecl module_ (declA:DeclA) = match declA.Item with
         let env = Environ(module_, func)
         use bldr = new Builder()
         positionBuilderAtEnd bldr (appendBasicBlock func.Func "entry")
+        // Allocate local vars on stack
+        Seq.iter (fun (var:Ref) -> var.ValueRef <- buildAlloca bldr (typeToLLVMType var.PType) name) declA.LocalRefs
+        // Build body
         genStmts bldr env stmts
 
 let defineDecl myModule (declA:DeclA) = match declA.Item with

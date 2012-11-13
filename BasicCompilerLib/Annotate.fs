@@ -36,24 +36,37 @@ let rec annotateTypesExpr (env:AnnotateEnviron) (exprA:ExprA) =
         | Call (name, exprAs) ->
             Seq.iter (annotateTypesExpr env) exprAs
             env.GetFunctionType(name)
+        | Assign (name, innerExprA) ->
+            annotateTypesExpr env innerExprA
+            innerExprA.PType
 
 let rec annotateTypesStmt env (stmtA:StmtA) = 
     stmtA.PType <- match stmtA.Item with
         | Print exprA ->
             annotateTypesExpr env exprA
             Unit
-        | Assign (var, exprA) ->
-            annotateTypesExpr env exprA
-            env.SetVarType(var, exprA.PType)
-            exprA.PType
+        | DeclVar (name, assignA) ->
+            annotateTypesExpr env assignA
+            env.SetVarType(name, assignA.PType)
+            Unit
         | Return exprA ->
             annotateTypesExpr env exprA
             Unit
         | If (exprA, then_, else_) ->
             annotateTypesExpr env exprA
-            Seq.iter (annotateTypesStmt env) then_
-            Seq.iter (annotateTypesStmt env) else_
+            annotateTypesStmts env then_
+            annotateTypesStmts env else_
             Unit
+        | While (exprA, stmtAs) ->
+            annotateTypesExpr env exprA
+            annotateTypesStmts env stmtAs
+            Unit
+        | LoneExpr e ->
+            annotateTypesExpr env e
+            Unit
+
+
+and annotateTypesStmts env stmtAs = Seq.iter (annotateTypesStmt env) stmtAs
 
 let annotateTypesDecl (env:AnnotateEnviron) (declA:DeclA) = match declA.Item with
     | Proc (_, params_, _, stmts) -> 
@@ -70,23 +83,30 @@ let rec annotateVarsExpr refs (exprA:ExprA) =
             annotateExpr l
             annotateExpr r
         | Call (_, exprAs) -> Seq.iter annotateExpr exprAs
+        | Assign (name, exprA) -> annotateExpr exprA
         | _ -> ()
 
 let rec annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
     stmtA.AddRefs(declA.Refs)
     let annotateExpr = annotateVarsExpr stmtA.Refs
     match stmtA.Item with
-        | Assign (name, exprA) ->
-            let ref = Ref(name, exprA.PType, Local)
+        | DeclVar (name, assignA) ->
+            let ref = Ref(name, assignA.PType, Local)
             declA.AddRef(ref)
             stmtA.AddRef(ref)
-            annotateExpr exprA
+            annotateVarsExpr stmtA.Refs assignA
         | Print exprA -> annotateExpr exprA
         | Return exprA -> annotateExpr exprA
+        | LoneExpr exprA -> annotateExpr exprA
         | If (exprA, thenStmtAs, elseStmtAs) ->
             annotateExpr exprA
             Seq.iter (annotateVarsStmt declA) thenStmtAs
             Seq.iter (annotateVarsStmt declA) elseStmtAs
+        | While (exprA, stmtAs) ->
+            annotateExpr exprA
+            annotateVarsStmts declA stmtAs
+
+and annotateVarsStmts declA stmtAs = Seq.iter (annotateVarsStmt declA) stmtAs
 
 let annotateVarsDecl (declA:DeclA) = match declA.Item with
     | Proc (_, prms, _, stmts) ->
