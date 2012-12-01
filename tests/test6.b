@@ -4,6 +4,7 @@ proc f(a:Int):Int {
         var j = 0;
         while j < a {
             print i + j;
+            j = j + 1;
         };
         i = i + 1;
     };

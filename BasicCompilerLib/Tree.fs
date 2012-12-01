@@ -67,18 +67,14 @@ type Expr =
     | Call of string * list<ExprA>
     | Var of string
     | Assign of string * ExprA
-
-and ExprA = Annot<Expr>
-
-type Stmt =
     | Print of ExprA
     | DeclVar of string * (*Assign*) ExprA
     | Return of ExprA
-    | If of ExprA * list<StmtA> * list<StmtA>
-    | While of ExprA * list<StmtA>
-    | LoneExpr of ExprA
+    | If of ExprA * ExprA * ExprA
+    | While of ExprA * ExprA
+    | Seq of ExprA * ExprA
 
-and StmtA = Annot<Stmt>
+and ExprA = Annot<Expr>
 
 type Param(name: string, ptype: PType) =
     member x.Name = name
@@ -86,7 +82,7 @@ type Param(name: string, ptype: PType) =
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
 type Decl = 
-    | Proc of (*name*) string * (*params*) list<Param> * (*returnType*) PType * list<StmtA>
+    | Proc of (*name*) string * (*params*) list<Param> * (*returnType*) PType * Expr
 
 type DeclA = Annot<Decl>
 
