@@ -13,10 +13,11 @@ type Env(localVars:list<Ref>) =
     member x.AddLocalVar(ref) = localVars <- ref :: localVars
     member x.Count = i <- i + 1;
 
-let rec annotateTypesExpr (env:Env) (exprA:ExprA) =    
+let rec annotateTypesExpr (env:Env) (exprA:ExprA) = 
     exprA.PType <- match exprA.Item with
         | ConstInt _ ->  Int
         | ConstBool _ -> Bool
+        | ConstUnit -> Unit
         | Var n -> exprA.GetRef(n).PType
         | Binop (op, l, r) ->
             annotateTypesExpr env l

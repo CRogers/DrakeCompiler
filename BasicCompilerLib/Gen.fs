@@ -50,6 +50,8 @@ let rec genExpr bldr (env:Environ) (exprA:ExprA) =
             mkConst x
         | ConstBool b ->
             boolToI1 b
+        | ConstUnit ->
+            mkConst 0
         | Binop (op, left, right) ->
             let bIcmp cond = (fun bldr -> buildICmp bldr cond)
             let buildFunc = match op with

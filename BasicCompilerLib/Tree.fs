@@ -65,6 +65,7 @@ type Annot<'a>(item:'a, pos:Pos) =
 type Expr =
     | ConstInt of int
     | ConstBool of bool
+    | ConstUnit
     | Var of string
     | Binop of Op * ExprA * ExprA
     | Call of string * list<ExprA>
@@ -108,6 +109,7 @@ let rec foldAST branchFunc leafFunc (exprA:ExprA) =
     match exprA.Item with
         | ConstInt _ -> leafFunc exprA
         | ConstBool _ -> leafFunc exprA
+        | ConstUnit -> leafFunc exprA
         | Var n -> leafFunc exprA
         | Binop (op, l, r) -> bf exprA [l; r]
         | Call (name, exprAs) -> bf exprA exprAs

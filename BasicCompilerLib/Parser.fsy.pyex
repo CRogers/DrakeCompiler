@@ -101,18 +101,15 @@ $endfor\
         { ambb (Call (v \$1, \$3)) (p \$1) \$4 }
 	| IDENT
         { a (Var (v \$1)) (p \$1) }    
-    | IF expr LCURLY expr RCURLY possibleElse
-        { ambb (If (\$2, \$4, \$6)) \$1 \$5 }
+    | IF expr LCURLY expr RCURLY ELSE LCURLY expr RCURLY
+        { ambb (If (\$2, \$4, \$8)) \$1 \$9 }
     | WHILE expr LCURLY expr RCURLY
         { ambb (While (\$2, \$4)) \$1 \$5 }
     | LPAR expr RPAR
         { \$2 }
     | LCURLY expr0 RCURLY
         { \$2 }
-
-possibleElse:
-    | /* empty */                   { [] }
-    | ELSE LCURLY expr RCURLY       { \$3 }
+    
 
 argList:
     | /* empty */                   { [] }
