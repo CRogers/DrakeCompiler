@@ -5,58 +5,70 @@ open Print
 open Tree
 open Builtins
 
-let rec annotateTypesExpr (exprA:ExprA) =    
+type Env(localVars:list<Ref>) =
+    let mutable i = 0;
+    let mutable localVars = localVars
+
+    member x.LocalVars = localVars
+    member x.AddLocalVar(ref) = localVars <- ref :: localVars
+    member x.Count = i <- i + 1;
+
+let rec annotateTypesExpr (env:Env) (exprA:ExprA) =    
     exprA.PType <- match exprA.Item with
         | ConstInt _ ->  Int
         | ConstBool _ -> Bool
         | Var n -> exprA.GetRef(n).PType
         | Binop (op, l, r) ->
-            annotateTypesExpr l
-            annotateTypesExpr r
+            annotateTypesExpr env l
+            annotateTypesExpr env r
             let type_ = binopToType op l.PType r.PType
             if type_ = None then
                 failwithf "Incorrect type for binary operation:\n%s" (fmt exprA.Item)
             else
                 type_.Value
         | Call (name, exprAs) ->
-            Seq.iter (annotateTypesExpr) exprAs
+            Seq.iter (annotateTypesExpr env) exprAs
             exprA.GetRef(name).PType
         | Assign (name, innerExprA) ->
-            annotateTypesExpr innerExprA
+            annotateTypesExpr env innerExprA
             innerExprA.PType
         | DeclVar (name, assignA) ->
-            annotateTypesExpr assignA
+            annotateTypesExpr env assignA
             // Since we have declared a variable, add a reference object for it
-            exprA.AddRef(Ref(name, assignA.PType, Local))
+            let ref = Ref(name, assignA.PType, Local)
+            env.AddLocalVar(ref)
+            exprA.AddRef(ref)
             assignA.PType
         | Print exprA ->
-            annotateTypesExpr exprA
+            annotateTypesExpr env exprA
             exprA.PType
         | Return exprA ->
-            annotateTypesExpr exprA
+            annotateTypesExpr env exprA
             Unit
         | If (test, then_, else_) ->
-            annotateTypesExpr test
-            annotateTypesExpr then_
-            annotateTypesExpr else_
+            annotateTypesExpr env test
+            annotateTypesExpr env then_
+            annotateTypesExpr env else_
             then_.PType
         | While (exprA, stmtAs) ->
-            annotateTypesExpr exprA
-            annotateTypesExpr stmtAs
+            annotateTypesExpr env exprA
+            annotateTypesExpr env stmtAs
             stmtAs.PType
         | Seq (e1A, e2A) ->
-            annotateTypesExpr e1A
+            annotateTypesExpr env e1A
             // Since e2A is lexically below and and in the same scope as e1A, all 
             // e1A's references also appear in e2A
             e2A.AddRefs(e1A.Refs)
-            annotateTypesExpr e2A
+            annotateTypesExpr env e2A
             e2A.PType
 
 let annotateTypesDecl (declA:DeclA) = match declA.Item with
     | Proc (name, params_, returnType, exprA) ->
         // Add the parameters to the body's environment
         Seq.iter (fun (p:Param) -> exprA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
-        annotateTypesExpr exprA
+        let env = Env([])
+        annotateTypesExpr env exprA
+        declA.LocalVars <- env.LocalVars
 
 
 let annotate (program:Program) =

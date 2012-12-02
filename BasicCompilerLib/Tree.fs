@@ -49,6 +49,8 @@ type Annot<'a>(item:'a, pos:Pos) =
     member x.LocalRefs with get () = filterRefs Local
     member x.ParamRefs with get () = filterRefs Parameter
 
+    member val LocalVars:list<Ref> = [] with get, set
+
     member x.Pos = pos
     member x.Item = item
     member val PType = Undef with get, set
@@ -86,6 +88,7 @@ type Decl =
 
 type DeclA = Annot<Decl>
 
+
 type Program = list<DeclA>
 
 type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) =
@@ -93,25 +96,9 @@ type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) =
     member x.Func = func
     member x.Params = params
 
-type Environ(module_: ModuleRef, enclosingFunc: Func) =
-    let refs = new Dictionary<string, ValueRef>()
-    let icount = new Dictionary<string, int>()
-
-    do
-        Map.iter (fun k v -> refs.Add(k, v)) enclosingFunc.Params
-
+type Environ(module_: ModuleRef, enclosingFunc: Ref) =
     member x.Module = module_
     member x.EnclosingFunc = enclosingFunc
-    member x.AddRef(name, vr) = refs.[name] <- vr
-    member x.GetRef(name) = refs.[name]
-    
-    member x.GetName name =
-        if not <| icount.ContainsKey(name) then
-            icount.[name] <- 0
-        let ret = icount.[name]
-        icount.[name] <- ret + 1
-        name + "." + ret.ToString()
-    member x.GetTmp() = x.GetName "tmp"
 
 
 let rec foldAST branchFunc leafFunc (exprA:ExprA) =

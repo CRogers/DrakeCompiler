@@ -18,10 +18,6 @@ let amab item (leftA:Annot<_>) rpos = ambb item leftA.Pos rpos
 (*annotate using markers that are annotated*)
 let amaa item (leftA:Annot<_>) (rightA:Annot<_>) = ambb item leftA.Pos rightA.Pos
 
-let pns item pnsresult = match pnsresult with
-    | None   -> item
-    | Some e -> Seq (item, e)
-
 %}
 
 $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','GtEq','Eq'])
@@ -32,7 +28,7 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 %token<Pos>            $for(binop in binops)$(binop.upper()) $endfor
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
 %token<Pos>            RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
-%token<Pos>            IF ELSE WHILE VAR
+%token<Pos>            IF THEN ELSE WHILE DO VAR
 
 %type<Program> program
 %start program
@@ -80,7 +76,7 @@ expr0:
 
 expr1:
     | IDENT EQUALS expr1
-        { amba (Assign (v \$1, \$3))) (p \$1) \$3 }
+        { amba (Assign (v \$1, \$3)) (p \$1) \$3 }
     | PRINT expr1
         { amba (Print \$2) \$1 \$2 }
     | VAR IDENT EQUALS expr1

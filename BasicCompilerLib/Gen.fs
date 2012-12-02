@@ -44,7 +44,7 @@ let typeToLLVMType t = match t with
     | Bool -> i1
     | Int  -> i32
 
-let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
+let rec genExpr bldr (env:Environ) (exprA:ExprA) =
     match exprA.Item with
         | ConstInt x ->
             mkConst x
@@ -64,60 +64,62 @@ let rec genExpr bldr (env:Environ) irname (exprA:ExprA) =
                 | LtEq ->       bIcmp IntPredicate.IntSLE 
                 | GtEq ->       bIcmp IntPredicate.IntSGE 
                 | Eq ->         bIcmp IntPredicate.IntEQ
-            buildFunc bldr (genExpr bldr env "" left) (genExpr bldr env "" right) irname
+            buildFunc bldr (genExpr bldr env left) (genExpr bldr env right) ""
             
         | Call (name, args) ->
             let funcToCall = globalFuncs.[name]
-            let argRefs = Seq.map (genExpr bldr env "") args |> Seq.toArray
-            buildCall bldr funcToCall.Func argRefs irname
+            let argRefs = Seq.map (genExpr bldr env) args |> Seq.toArray
+            buildCall bldr funcToCall.Func argRefs ""
+
         | Var name ->
             let ref = exprA.GetRef(name)
             match ref.RefType with
                 | Parameter -> ref.ValueRef
                 | Local     -> buildLoad bldr ref.ValueRef name
+
         | Assign (name, e) ->
-            let expr = genExpr bldr env "" e
+            let expr = genExpr bldr env e
             let valref = exprA.GetRef(name).ValueRef
             buildStore bldr expr valref
-            
 
-let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
-    match stmtA.Item with
         | Print e -> 
-            let expr = genExpr bldr env "print." e
+            let expr = genExpr bldr env e
             let mexpr = if e.PType = Bool then buildZExt bldr expr i32 "convert." else expr
-            let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] (env.GetTmp())
-            buildCall bldr globals.["printf"] [| gep; mexpr |] <| env.GetTmp() |> ignore
+            let gep = buildGEP bldr (globals.["numFmt"]) [| i32zero; i32zero|] ""
+            buildCall bldr globals.["printf"] [| gep; mexpr |] <| ""
+
         | DeclVar (name, assignA) ->
-            let pointerType = typeToLLVMType stmtA.PType
+            let pointerType = typeToLLVMType exprA.PType
             let varpointer = buildAlloca bldr pointerType name
-            stmtA.GetRef(name).ValueRef <- varpointer
-            genExpr bldr env name assignA |> ignore
+            exprA.GetRef(name).ValueRef <- varpointer
+            genExpr bldr env assignA
+
         | Return e ->
-            let expr = genExpr bldr env "return." e
-            buildRet bldr expr |> ignore
-        | LoneExpr e ->
-            genExpr bldr env "" e |> ignore
+            let expr = genExpr bldr env e
+            buildRet bldr expr
+
         | If (e, thenStmtAs, elseStmtAs) ->
-            let func = env.EnclosingFunc.Func
+            let func = env.EnclosingFunc.ValueRef
             let ifthen = appendBasicBlock func "ifthen"
             let ifelse = appendBasicBlock func "ifelse"
             let ifcont = appendBasicBlock func "ifcont"
             // If
-            let expr = genExpr bldr env "if" e
+            let expr = genExpr bldr env e
             buildCondBr bldr expr ifthen ifelse |> ignore
             // Then
             positionBuilderAtEnd bldr ifthen
-            genStmts bldr env thenStmtAs
+            let thenResult = genExpr bldr env thenStmtAs
             buildBr bldr ifcont |> ignore
             // Else
             positionBuilderAtEnd bldr ifelse
-            genStmts bldr env elseStmtAs
+            let elseResult = genExpr bldr env elseStmtAs
             buildBr bldr ifcont |> ignore
             // Cont
             positionBuilderAtEnd bldr ifcont
+            mkConst 0
+
         | While (e, stmtAs) ->
-            let func = env.EnclosingFunc.Func
+            let func = env.EnclosingFunc.ValueRef
             let whilebody = appendBasicBlock func "whilebody"
             let whiletest = appendBasicBlock func "whiletest"
             let whilecont = appendBasicBlock func "whilecont"
@@ -125,27 +127,26 @@ let rec genStmt bldr (env:Environ) (stmtA:StmtA) =
             buildBr bldr whiletest |> ignore
             // Body
             positionBuilderAtEnd bldr whilebody
-            genStmts bldr env stmtAs
+            let res = genExpr bldr env stmtAs
             buildBr bldr whiletest |> ignore
             // Test
             positionBuilderAtEnd bldr whiletest
-            let expr = genExpr bldr env "while" e
+            let expr = genExpr bldr env e
             buildCondBr bldr expr whilebody whilecont |> ignore
             // Cont
             positionBuilderAtEnd bldr whilecont
-
-and genStmts bldr env stmts = Seq.iter (fun s -> genStmt bldr env s |> ignore) stmts
+            res
 
 let genDecl module_ (declA:DeclA) = match declA.Item with
-    | Proc (name, _, _, stmts) ->
-        let func = globalFuncs.[name]
+    | Proc (name, _, _, body) ->
+        let func = declA.GetRef(name)
         let env = Environ(module_, func)
         use bldr = new Builder()
-        positionBuilderAtEnd bldr (appendBasicBlock func.Func "entry")
+        positionBuilderAtEnd bldr (appendBasicBlock func.ValueRef "entry")
         // Allocate local vars on stack
-        Seq.iter (fun (var:Ref) -> var.ValueRef <- buildAlloca bldr (typeToLLVMType var.PType) name) declA.LocalRefs
+        Seq.iter (fun (var:Ref) -> var.ValueRef <- buildAlloca bldr (typeToLLVMType var.PType) name) declA.LocalVars
         // Build body
-        genStmts bldr env stmts
+        genExpr bldr env body |> ignore
 
 let defineDecl myModule (declA:DeclA) = match declA.Item with
     | Proc (name, params, returnType, _) ->
@@ -164,7 +165,7 @@ let defineDecl myModule (declA:DeclA) = match declA.Item with
             setValueName llvmParam paramName
             (paramName, llvmParam)) [0..numParams-1]
 
-        globalFuncs.Add(name, new Func(name, func, Map.ofSeq paramMapSeq))
+        (name, func)
 
 let gen (program:list<DeclA>) =
     let myModule = moduleCreateWithName "basicModule"
@@ -176,7 +177,9 @@ let gen (program:list<DeclA>) =
     addGlobalStringConstant myModule "numFmt" "%d\n" |> ignore
 
     // Make funcTypes for each procedure
-    Seq.iter (defineDecl myModule) program
+    Seq.iter (fun declA -> 
+        let (name, func) =defineDecl myModule declA
+        declA.GetRef(name).ValueRef <- func) program
 
     // Generate code for each proc
     Seq.iter (genDecl myModule) program

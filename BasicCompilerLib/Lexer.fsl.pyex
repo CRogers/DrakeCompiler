@@ -15,7 +15,7 @@ let pos (lexbuf:LexBuffer<_>) = Pos(lexbuf.StartPos, lexbuf.EndPos)
 
 $py(defs=[("print", "PRINT"), ("proc", "PROC"), ("return", "RETURN")])\
 $py(defs+=[("true", "TRUE"), ("false", "FALSE"), ("start", "START")])\
-$py(defs+=[("if", "IF"), ("else", "ELSE"), ("while", "WHILE"), ("var", "VAR")])\
+$py(defs+=[("if", "IF"), ("then", "THEN"), ("else", "ELSE"), ("while", "WHILE"), ("do", "DO"), ("var", "VAR")])\
     
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY")])\
 $py(defs+=[("+", "ADD"), ("-", "SUB"), ("/", "DIV"), ("*", "MUL"), (":", "COLON"), (";", "SEMI")])\
