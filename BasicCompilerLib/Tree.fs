@@ -37,15 +37,15 @@ type Ref(name:string, ptype:PType, reftype: RefType) =
 type SRP = KeyValuePair<string, Ref>
 
 type Annot<'a>(item:'a, pos:Pos) =
-    let vars = Dictionary<string,Ref>()
+    let mutable refs:Map<string,Ref> = Map.empty;
     let filterRefs refType =
-        Seq.filter (fun (kvp:SRP) -> kvp.Value.RefType = Local) vars
-        |> Seq.map (fun (kvp:SRP) -> kvp.Value)
+        Map.filter (fun k (v:Ref) -> v.RefType = refType) refs
+        |> Map.toSeq |> Seq.map (fun (k,v) -> v)
 
-    member x.GetRef(name:string) = vars.[name]
-    member x.AddRef(ref:Ref) = vars.[ref.Name] <- ref
-    member x.AddRefs(refs:IDictionary<string,Ref>) = Seq.iter (fun (kvp:SRP) -> vars.Add(kvp.Key, kvp.Value)) refs
-    member x.Refs:IDictionary<string,Ref> = upcast ReadOnlyDictionary(vars)
+    member x.Refs = refs
+    member x.AddRef(ref:Ref) = refs <- refs.Add(ref.Name, ref)
+    member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
+    member x.GetRef(name) = Map.find name refs
     member x.LocalRefs with get () = filterRefs Local
     member x.ParamRefs with get () = filterRefs Parameter
 
@@ -82,7 +82,7 @@ type Param(name: string, ptype: PType) =
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
 type Decl = 
-    | Proc of (*name*) string * (*params*) list<Param> * (*returnType*) PType * Expr
+    | Proc of (*name*) string * (*params*) list<Param> * (*returnType*) PType * ExprA
 
 type DeclA = Annot<Decl>
 

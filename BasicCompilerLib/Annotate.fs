@@ -5,131 +5,72 @@ open Print
 open Tree
 open Builtins
 
-type AnnotateEnviron() =
-    let vars = new Dictionary<string, PType>();
-    let funcMod func = "<>func_" + func
-
-    member x.GetVarType(var) = vars.[var]
-    member x.SetVarType(var, ptype) = vars.[var] <- ptype
-
-    member x.GetFunctionType(func) = vars.[funcMod func]
-    member x.SetFunctionType(func, ptype) = vars.[funcMod func] <- ptype
-
-    member x.Clone() =
-        let ae = new AnnotateEnviron()
-        Seq.iter (fun (kvp:KeyValuePair<string, PType>) -> ae.SetVarType(kvp.Key, kvp.Value) |> ignore) vars
-        ae
-
-let rec annotateTypesExpr (env:AnnotateEnviron) (exprA:ExprA) = 
+let rec annotateTypesExpr (exprA:ExprA) =    
     exprA.PType <- match exprA.Item with
         | ConstInt _ ->  Int
         | ConstBool _ -> Bool
-        | Var n -> env.GetVarType(n)
+        | Var n -> exprA.GetRef(n).PType
         | Binop (op, l, r) ->
-            annotateTypesExpr env l
-            annotateTypesExpr env r
+            annotateTypesExpr l
+            annotateTypesExpr r
             let type_ = binopToType op l.PType r.PType
             if type_ = None then
                 failwithf "Incorrect type for binary operation:\n%s" (fmt exprA.Item)
             else
                 type_.Value
         | Call (name, exprAs) ->
-            Seq.iter (annotateTypesExpr env) exprAs
-            env.GetFunctionType(name)
+            Seq.iter (annotateTypesExpr) exprAs
+            exprA.GetRef(name).PType
         | Assign (name, innerExprA) ->
-            annotateTypesExpr env innerExprA
+            annotateTypesExpr innerExprA
             innerExprA.PType
-
-let rec annotateTypesStmt env (stmtA:StmtA) = 
-    stmtA.PType <- match stmtA.Item with
         | Print exprA ->
-            annotateTypesExpr env exprA
-            Unit
+            annotateTypesExpr exprA
+            exprA.PType
         | DeclVar (name, assignA) ->
-            annotateTypesExpr env assignA
-            env.SetVarType(name, assignA.PType)
-            Unit
+            annotateTypesExpr assignA
+            // Since we have declared a variable, add a reference object for it
+            exprA.AddRef(Ref(name, assignA.PType, Local))
+            assignA.PType
         | Return exprA ->
-            annotateTypesExpr env exprA
+            annotateTypesExpr exprA
             Unit
-        | If (exprA, then_, else_) ->
-            annotateTypesExpr env exprA
-            annotateTypesStmts env then_
-            annotateTypesStmts env else_
-            Unit
+        | If (test, then_, else_) ->
+            annotateTypesExpr test
+            annotateTypesExpr then_
+            annotateTypesExpr else_
+            then_.PType
         | While (exprA, stmtAs) ->
-            annotateTypesExpr env exprA
-            annotateTypesStmts env stmtAs
-            Unit
-        | LoneExpr e ->
-            annotateTypesExpr env e
-            Unit
+            annotateTypesExpr exprA
+            annotateTypesExpr stmtAs
+            stmtAs.PType
+        | Seq (e1A, e2A) ->
+            annotateTypesExpr e1A
+            // Since e2A is lexically below and and in the same scope as e1A, all 
+            // e1A's references also appear in e2A
+            e2A.AddRefs(e1A.Refs)
+            annotateTypesExpr e2A
+            e2A.PType
 
+let annotateTypesDecl (declA:DeclA) = match declA.Item with
+    | Proc (name, params_, returnType, exprA) ->
+        // Add the parameters to the body's environment
+        Seq.iter (fun (p:Param) -> exprA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
+        annotateTypesExpr exprA
 
-and annotateTypesStmts env stmtAs = Seq.iter (annotateTypesStmt env) stmtAs
-
-let annotateTypesDecl (env:AnnotateEnviron) (declA:DeclA) = match declA.Item with
-    | Proc (_, params_, _, stmts) -> 
-        let fenv = env.Clone()
-        Seq.iter (fun (p:Param) -> fenv.SetVarType(p.Name, p.PType) |> ignore) params_
-        Seq.iter (annotateTypesStmt fenv) stmts
-
-
-let rec annotateVarsExpr refs (exprA:ExprA) =
-    exprA.AddRefs(refs)
-    let annotateExpr = annotateVarsExpr refs
-    match exprA.Item with
-        | Binop (_, l, r) -> 
-            annotateExpr l
-            annotateExpr r
-        | Call (_, exprAs) -> Seq.iter annotateExpr exprAs
-        | Assign (name, exprA) -> annotateExpr exprA
-        | _ -> ()
-
-let rec annotateVarsStmt (declA:DeclA) (stmtA:StmtA) =
-    stmtA.AddRefs(declA.Refs)
-    let annotateExpr = annotateVarsExpr stmtA.Refs
-    match stmtA.Item with
-        | DeclVar (name, assignA) ->
-            let ref = Ref(name, assignA.PType, Local)
-            declA.AddRef(ref)
-            stmtA.AddRef(ref)
-            annotateVarsExpr stmtA.Refs assignA
-        | Print exprA -> annotateExpr exprA
-        | Return exprA -> annotateExpr exprA
-        | LoneExpr exprA -> annotateExpr exprA
-        | If (exprA, thenStmtAs, elseStmtAs) ->
-            annotateExpr exprA
-            Seq.iter (annotateVarsStmt declA) thenStmtAs
-            Seq.iter (annotateVarsStmt declA) elseStmtAs
-        | While (exprA, stmtAs) ->
-            annotateExpr exprA
-            annotateVarsStmts declA stmtAs
-
-and annotateVarsStmts declA stmtAs = Seq.iter (annotateVarsStmt declA) stmtAs
-
-let annotateVarsDecl (declA:DeclA) = match declA.Item with
-    | Proc (_, prms, _, stmts) ->
-        // Add the parameters
-        Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) prms
-        // Propagate params to stmts
-        Seq.iter (annotateVarsStmt declA) stmts
-    
 
 let annotate (program:Program) =
 
-    // Create initial environment where all the functions return types have been added
-    let env0 = new AnnotateEnviron()
-    Seq.fold (fun (env:AnnotateEnviron) (declA:DeclA) ->
-        match declA.Item with
+    // Create an initial map of refs with all the functions return types
+    let initRefs = Seq.map (fun (declA:DeclA) -> match declA.Item with
             | Proc (name, _, returnType, _) ->
-                declA.PType <- returnType
-                env.SetFunctionType(name, returnType)
-        env) env0 program
-    |> ignore
-
+                (name, Ref(name, returnType, Local))) program |> Map.ofSeq
+                
     // Do a series of annotation passes
-    Seq.iter (fun d -> 
-        annotateTypesDecl env0 d
-        annotateVarsDecl d) program
+    Seq.iter (fun (d:DeclA) -> 
+        // Add the initial refs first
+        d.AddRefs(initRefs)
+        annotateTypesDecl d) program
+
+    // Return the annotated tree
     program
