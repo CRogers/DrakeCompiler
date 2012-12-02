@@ -63,12 +63,12 @@ type Annot<'a>(item:'a, pos:Pos) =
 type Expr =
     | ConstInt of int
     | ConstBool of bool
+    | Var of string
     | Binop of Op * ExprA * ExprA
     | Call of string * list<ExprA>
-    | Var of string
     | Assign of string * ExprA
-    | Print of ExprA
     | DeclVar of string * (*Assign*) ExprA
+    | Print of ExprA
     | Return of ExprA
     | If of ExprA * ExprA * ExprA
     | While of ExprA * ExprA
@@ -112,3 +112,22 @@ type Environ(module_: ModuleRef, enclosingFunc: Func) =
         icount.[name] <- ret + 1
         name + "." + ret.ToString()
     member x.GetTmp() = x.GetName "tmp"
+
+
+let rec foldAST branchFunc leafFunc (exprA:ExprA) =
+    let fAST e = foldAST branchFunc leafFunc e
+    let bf1 branch e = branchFunc branch <| [fAST e]
+    let bf branch es = branchFunc branch <| List.map fAST es
+    match exprA.Item with
+        | ConstInt _ -> leafFunc exprA
+        | ConstBool _ -> leafFunc exprA
+        | Var n -> leafFunc exprA
+        | Binop (op, l, r) -> bf exprA [l; r]
+        | Call (name, exprAs) -> bf exprA exprAs
+        | Assign (name, innerExprA) -> bf1 exprA innerExprA
+        | DeclVar (name, assignA) -> bf1 exprA assignA
+        | Print e -> bf1 exprA e
+        | Return e -> bf1 exprA e
+        | If (test, then_, else_) -> bf exprA [test; then_; else_]
+        | While (test, body) -> bf exprA [test; body]
+        | Seq (e1A, e2A) -> bf exprA [e1A; e2A]

@@ -14,16 +14,13 @@ let getReturnExpr = function
 
 let checkReturnStmt (declA:DeclA) =
     match declA.Item with
-        | Proc (name, prms, returnType, stmtAs) ->
-            if stmtAs.Length = 0 || not <| isReturn (Seq.last stmtAs).Item then
-                [Error("The last statement in a prodcedure must be a return stmt", (Seq.last stmtAs).Pos)]
-            else
-                let returnStmt = Seq.last stmtAs
-                let returnExpr = getReturnExpr returnStmt.Item
-                if returnExpr.PType <> returnType then
-                    [Error(sprintf "Incorrect return type. Expected type %s, got %s" (fmt returnType) (fmt returnExpr.PType), returnExpr.Pos)]
-                else
-                    []
+        | Proc (name, prms, returnType, body) ->
+            // Check that all return statements return the correct type
+            foldAST (fun branch xss ->
+                let xs = List.concat xss
+                match branch.Item with
+                    | Return e -> if branch.PType = returnType then xs else xs @ [Error(sprintf "Incorrect return type for return expr. Expected type %s, got %s" (fmt returnType) (fmt branch.PType), branch.Pos)] 
+                    | _ -> xs) (fun x -> []) body
 
 let check program =
     let concatMap f list = List.concat <| List.map f list

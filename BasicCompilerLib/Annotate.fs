@@ -24,14 +24,14 @@ let rec annotateTypesExpr (exprA:ExprA) =
         | Assign (name, innerExprA) ->
             annotateTypesExpr innerExprA
             innerExprA.PType
-        | Print exprA ->
-            annotateTypesExpr exprA
-            exprA.PType
         | DeclVar (name, assignA) ->
             annotateTypesExpr assignA
             // Since we have declared a variable, add a reference object for it
             exprA.AddRef(Ref(name, assignA.PType, Local))
             assignA.PType
+        | Print exprA ->
+            annotateTypesExpr exprA
+            exprA.PType
         | Return exprA ->
             annotateTypesExpr exprA
             Unit
