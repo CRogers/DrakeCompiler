@@ -41,6 +41,7 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
             let ref = Ref(name, assignA.PType, Local)
             env.AddLocalVar(ref)
             exprA.AddRef(ref)
+            assignA.AddRef(ref)
             assignA.PType
         | Print exprA ->
             aTE env exprA

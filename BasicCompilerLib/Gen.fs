@@ -69,9 +69,9 @@ let rec genExpr bldr (env:Environ) (exprA:ExprA) =
             buildFunc bldr (genExpr bldr env left) (genExpr bldr env right) ""
             
         | Call (name, args) ->
-            let funcToCall = globalFuncs.[name]
+            let funcRef = exprA.GetRef(name)
             let argRefs = Seq.map (genExpr bldr env) args |> Seq.toArray
-            buildCall bldr funcToCall.Func argRefs ""
+            buildCall bldr funcRef.ValueRef argRefs ""
 
         | Var name ->
             let ref = exprA.GetRef(name)
@@ -138,6 +138,12 @@ let rec genExpr bldr (env:Environ) (exprA:ExprA) =
             // Cont
             positionBuilderAtEnd bldr whilecont
             res
+
+        | Seq (e1A, e2A) ->
+            // Generate the code for the first expr, throw away the result
+            genExpr bldr env e1A
+            // Gen code for next expr
+            genExpr bldr env e2A
 
 let genDecl module_ (declA:DeclA) = match declA.Item with
     | Proc (name, _, _, body) ->
