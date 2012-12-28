@@ -73,6 +73,7 @@ block:
 expr0:
     | expr1 SEMI expr0               { amaa (Seq (\$1, \$3)) \$1 \$3}
     | expr1 SEMI                     { \$1 }
+    | expr1                          { \$1 }
 
 expr1:
     | IDENT EQUALS expr1
@@ -83,6 +84,10 @@ expr1:
         { amba (DeclVar (v \$2, amba (Assign (v \$2, \$4)) (p \$2) \$4)) \$1 \$4 }
     | RETURN expr1
         { amba (Return \$2) \$1 \$2 }
+    | IF expr1 THEN expr1 ELSE expr1
+        { ambb (If (\$2, \$4, \$4)) \$1 \$5 }
+    | WHILE expr1 DO expr1
+        { amba (While (\$2, \$4)) \$1 \$4 }
     | expr
         { \$1 }
 
@@ -99,13 +104,9 @@ $for(binop in binops)\
 $endfor\
     | IDENT LPAR argList RPAR       
         { ambb (Call (v \$1, \$3)) (p \$1) \$4 }
-	| IDENT
-        { a (Var (v \$1)) (p \$1) }    
-    | IF expr LCURLY expr RCURLY ELSE LCURLY expr RCURLY
-        { ambb (If (\$2, \$4, \$8)) \$1 \$9 }
-    | WHILE expr block
-        { ambb (While (\$2, v \$3)) \$1 (p \$3) }
-    | LPAR expr RPAR
+    | IDENT
+        { a (Var (v \$1)) (p \$1) }
+    | LPAR expr1 RPAR
         { \$2 }
     | LCURLY expr0 RCURLY
         { \$2 }

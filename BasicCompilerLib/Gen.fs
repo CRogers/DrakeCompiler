@@ -83,6 +83,8 @@ let rec genExpr bldr (env:Environ) (exprA:ExprA) =
             let expr = genExpr bldr env e
             let valref = exprA.GetRef(name).ValueRef
             buildStore bldr expr valref
+            // Return the value that was stored rather than the store itself
+            expr
 
         | Print e -> 
             let expr = genExpr bldr env e
@@ -91,7 +93,6 @@ let rec genExpr bldr (env:Environ) (exprA:ExprA) =
             buildCall bldr globals.["printf"] [| gep; mexpr |] <| ""
 
         | DeclVar (name, assignA) ->
-            let pointerType = typeToLLVMType exprA.PType
             genExpr bldr env assignA
 
         | Return e ->
