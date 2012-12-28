@@ -12,12 +12,12 @@ type Op =
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
 
-type PType = Undef | Unit | Int | Bool with
+type PType = Undef | Unit | Int of int | Bool | Func of PType * PType with
     override x.ToString() = fmt x
 
 let parsePType str = match str with
     | "Unit" -> Unit
-    | "Int" -> Int
+    | "Int" -> Int 32
     | "Bool" -> Bool
 
 type Pos(startPos:Position, endPos:Position) =

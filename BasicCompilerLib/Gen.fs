@@ -7,9 +7,11 @@ open LLVM.Generated.Core
 open LLVM.Generated.BitWriter
 
 let i1 = int1Type ()
-let i32 = int32Type ()
-let tyVoid = voidType ()
 let i8 = int8Type ()
+let i16 = int16Type()
+let i32 = int32Type ()
+let i64 = int64Type ()
+let tyVoid = voidType ()
 let i32zero = constInt i32 0UL false
 let i8p = pointerType (int8Type ()) 0u
 
@@ -42,7 +44,10 @@ let boolToI1 x = constInt i1 (if x then 1UL else 0UL) false
 let typeToLLVMType t = match t with
     | Unit -> i32
     | Bool -> i1
-    | Int  -> i32
+    | Int 8  -> i8
+    | Int 16 -> i16
+    | Int 32 -> i32
+    | Int 64 -> i64
 
 let rec genExpr bldr (env:Environ) (exprA:ExprA) =
     match exprA.Item with

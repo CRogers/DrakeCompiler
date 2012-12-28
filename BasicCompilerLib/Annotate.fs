@@ -17,7 +17,7 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
     exprA.AddRefs(prevRefs)
     let aTE env eA = annotateTypesExpr env exprA.Refs eA
     exprA.PType <- match exprA.Item with
-        | ConstInt _ ->  Int
+        | ConstInt _ ->  Int 32
         | ConstBool _ -> Bool
         | ConstUnit -> Unit
         | Var n -> exprA.GetRef(n).PType

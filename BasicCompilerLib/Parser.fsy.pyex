@@ -47,7 +47,7 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 program: decls EOF                  { \$1 }
 
 decls:
-    | procDecls START block         { ambb (Proc ("main", [], Int, v \$3)) \$2 (p \$3) :: \$1 }
+    | procDecls START block         { ambb (Proc ("main", [], Int 32, v \$3)) \$2 (p \$3) :: \$1 }
 
 
 procDecls:
