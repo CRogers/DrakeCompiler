@@ -164,14 +164,15 @@ let defineDecl myModule (declA:DeclA) = match declA.Item with
         let funcTy = functionType returnTy argTy
         let func = addFunction myModule name funcTy
 
+        let foo = [0..numParams-1]
+
         // Set the function parameter names and fill the map
-        let paramMapSeq = Seq.map (fun i -> 
+        Seq.iter (fun i -> 
             let paramName = params.[i].Name
             let llvmParam = getParam func <| uint32 i
             declA.GetRef(paramName).ValueRef <- llvmParam
             // Set the function param name and return a tuple for the map
-            setValueName llvmParam paramName
-            (paramName, llvmParam)) [0..numParams-1]
+            setValueName llvmParam |> ignore) [0..numParams-1]
 
         (name, func)
 

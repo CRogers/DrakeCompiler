@@ -32,7 +32,8 @@ type Ref(name:string, ptype:PType, reftype: RefType) =
     member x.PType = ptype
     member x.RefType = reftype
     member val ValueRef = new ValueRef(nativeint 0xDEAD0000) with get, set
-    override x.ToString() = sprintf "%s:%s" x.Name (fmt x.PType)
+    member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDEAD0000
+    override x.ToString() = sprintf "%s:%s%s" x.Name (fmt x.PType) (if x.IsUninitialised then ":Uninit" else "")
 
 type SRP = KeyValuePair<string, Ref>
 

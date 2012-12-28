@@ -68,7 +68,7 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
 let annotateTypesDecl (declA:DeclA) = match declA.Item with
     | Proc (name, params_, returnType, exprA) ->
         // Add the parameters to the body's environment
-        Seq.iter (fun (p:Param) -> exprA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
+        Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
         let env = Env([])
         // Add the refs from the decl to it's subexpression
         annotateTypesExpr env declA.Refs exprA
