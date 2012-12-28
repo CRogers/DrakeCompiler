@@ -1,8 +1,8 @@
 proc f(a:Int):Int {
     var i = 0;
-    while i < a {
+    while i < a do {
         var j = 0;
-        while j < a {
+        while j < a do {
             print i + j;
             j = j + 1;
         };

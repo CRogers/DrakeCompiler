@@ -12,8 +12,23 @@ type Op =
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
 
-type PType = Undef | Unit | Int of int | Bool | Func of PType * PType with
+type PType = Undef | Unit | Int of int | Bool | PFunc of PType * PType with
     override x.ToString() = fmt x
+    member x.IsFunc = match x with
+        | PFunc _ -> true
+        | _ -> false
+    member x.NextArg = match x with
+        | PFunc (x, y) -> x
+        | _ -> failwithf "%s is not of type PFunc!" (x.ToString())
+    member x.FollowingArg = match x with
+        | PFunc (x, y) -> y
+        | _ -> failwithf "%s is not of type PFunc!" (x.ToString())
+    member x.ConsumeArgs(argPtypes) =
+        argPtypes
+        |> Seq.fold (fun resFuncPt argPt ->
+            if Option.isNone resFuncPt then None else (
+                let funcPt:PType = Option.get resFuncPt
+                if funcPt.IsFunc && argPt = funcPt.NextArg then Some (funcPt.FollowingArg) else None)) (Some x)
 
 let parsePType str = match str with
     | "Unit" -> Unit

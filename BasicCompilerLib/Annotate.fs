@@ -31,7 +31,17 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
                 type_.Value
         | Call (name, exprAs) ->
             Seq.iter (aTE env) exprAs
-            exprA.GetRef(name).PType
+            // Check to see if call works/what result is
+            let exprAsPtypes = if exprAs.Length = 0 then [Unit] 
+                               else List.map (fun (exprA:ExprA) -> exprA.PType) exprAs
+            let funcPtype = exprA.GetRef(name).PType
+            let res = funcPtype.ConsumeArgs(exprAsPtypes)
+            if Option.isNone res then failwithf "Incorrect type for call to %s" name
+            else (
+                let r = Option.get res
+                if r.IsFunc then failwithf "Currying not supported!"
+                else r) 
+            
         | Assign (name, innerExprA) ->
             aTE env innerExprA
             innerExprA.PType
@@ -70,6 +80,10 @@ let annotateTypesDecl (declA:DeclA) = match declA.Item with
         // Add the parameters to the body's environment
         Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
         let env = Env([])
+
+        // Get the decl's type from the initRefs
+        declA.PType <- declA.GetRef(name).PType
+
         // Add the refs from the decl to it's subexpression
         annotateTypesExpr env declA.Refs exprA
         declA.LocalVars <- env.LocalVars
@@ -79,8 +93,14 @@ let annotate (program:Program) =
 
     // Create an initial map of refs with all the functions return types
     let initRefs = Seq.map (fun (declA:DeclA) -> match declA.Item with
-            | Proc (name, _, returnType, _) ->
-                (name, Ref(name, returnType, Local))) program |> Map.ofSeq
+            | Proc (name, params_, returnType, _) ->
+                let paramPtypes = List.rev params_
+                                  |> Seq.map (fun (p:Param) -> p.PType)
+
+                let funcPtypes = if params_.Length = 0 then Seq.ofArray [|Unit|] else paramPtypes
+
+                let ptype = Seq.fold (fun acc ty -> PFunc (ty, acc)) returnType funcPtypes
+                (name, Ref(name, ptype, Local))) program |> Map.ofSeq
                 
     // Do a series of annotation passes
     Seq.iter (fun (d:DeclA) -> 
