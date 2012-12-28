@@ -92,8 +92,6 @@ let rec genExpr bldr (env:Environ) (exprA:ExprA) =
 
         | DeclVar (name, assignA) ->
             let pointerType = typeToLLVMType exprA.PType
-            let varpointer = buildAlloca bldr pointerType name
-            exprA.GetRef(name).ValueRef <- varpointer
             genExpr bldr env assignA
 
         | Return e ->
@@ -152,7 +150,7 @@ let genDecl module_ (declA:DeclA) = match declA.Item with
         use bldr = new Builder()
         positionBuilderAtEnd bldr (appendBasicBlock func.ValueRef "entry")
         // Allocate local vars on stack
-        Seq.iter (fun (var:Ref) -> var.ValueRef <- buildAlloca bldr (typeToLLVMType var.PType) name) declA.LocalVars
+        Seq.iter (fun (var:Ref) -> var.ValueRef <- buildAlloca bldr (typeToLLVMType var.PType) var.Name) declA.LocalVars
         // Build body
         genExpr bldr env body |> ignore
 

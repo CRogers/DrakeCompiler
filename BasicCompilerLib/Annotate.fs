@@ -48,7 +48,7 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
             exprA.PType
         | Return exprA ->
             aTE env exprA
-            Unit
+            exprA.PType
         | If (test, then_, else_) ->
             aTE env test
             aTE env then_
