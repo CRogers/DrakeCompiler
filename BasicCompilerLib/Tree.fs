@@ -12,7 +12,8 @@ type Op =
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
 
-type PType = Undef | Unit | Int of int | Bool | PFunc of PType * PType with
+type PType = Undef | Unit | Int of int | Bool | UserType of string | PFunc of PType * PType
+    with
     override x.ToString() = fmt x
     member x.IsFunc = match x with
         | PFunc _ -> true
@@ -79,7 +80,7 @@ type Annot<'a>(item:'a, pos:Pos) =
         
 
 type Expr =
-    | ConstInt of int
+    | ConstInt of (*size*) int * (*value*) int64
     | ConstBool of bool
     | ConstUnit
     | Var of string
@@ -100,13 +101,55 @@ type Param(name: string, ptype: PType) =
     member x.PType = ptype
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
-type Decl = 
-    | Proc of (*name*) string * (*params*) list<Param> * (*returnType*) PType * ExprA
+type Visibility =
+    | Private
+    | Public
 
-type DeclA = Annot<Decl>
+type IVisibility =
+    abstract Visibility : Visibility
 
 
-type Program = list<DeclA>
+type ClassDecl =
+    | ClassVar of string * Visibility * PType * ExprA
+    | ClassProc of (*name*) string * Visibility * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
+    with
+    interface IVisibility with
+        member x.Visibility = match x with
+            | ClassVar (_, vis, _, _) -> vis
+            | ClassProc (_, vis, _, _, _) -> vis
+
+type ClassDeclA = Annot<ClassDecl>
+
+
+type InterfaceDecl =
+    | InterfaceProc of (*name*) string * (*type*) PType
+    with
+    interface IVisibility with
+        member x.Visibility = Public
+
+type InterfaceDeclA = Annot<InterfaceDecl>
+
+
+type NamespaceDecl =
+    | Class of string * Visibility * list<ClassDeclA>
+    | Interface of string * Visibility * list<InterfaceDeclA>
+    with
+    interface IVisibility with
+        member x.Visibility = match x with
+            | Class (_, vis, _) -> vis
+            | Interface (_, vis, _) -> vis
+
+type NamespaceDeclA = Annot<NamespaceDecl>
+
+
+type TopDecl =
+    | Using of string
+    | Namespace of string * list<NamespaceDeclA>
+
+type TopDeclA = Annot<TopDecl>
+
+
+type Program = list<TopDeclA>
 
 type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) =
     member x.Name = name

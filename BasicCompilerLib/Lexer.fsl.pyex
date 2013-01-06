@@ -16,11 +16,14 @@ let pos (lexbuf:LexBuffer<_>) = Pos(lexbuf.StartPos, lexbuf.EndPos)
 $py(defs=[("print", "PRINT"), ("proc", "PROC"), ("return", "RETURN")])\
 $py(defs+=[("true", "TRUE"), ("false", "FALSE"), ("start", "START")])\
 $py(defs+=[("if", "IF"), ("then", "THEN"), ("else", "ELSE"), ("while", "WHILE"), ("do", "DO"), ("var", "VAR")])\
-    
+$py(defs+=[("namespace", "NAMESPACE"),("class", "CLASS"), ("interface", "INTERFACE")])\
+$py(defs+=[("using", "USING")])\
+
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY")])\
 $py(defs+=[("+", "ADD"), ("-", "SUB"), ("/", "DIV"), ("*", "MUL"), (":", "COLON"), (";", "SEMI")])\
 $py(defs+=[(",", "COMMA"), ("=", "EQUALS"), ("&&", "BOOLAND"), ("||", "BOOLOR"), ("!", "NOT")])\
 $py(defs+=[("<", "LT"), (">", "GT"), ("<=", "LTEQ"), (">=", "GTEQ"), ("==", "EQ")])\
+$py(defs+=[(".", "DOT"), ("->", "ARROW")])\
 
 }
 
@@ -33,7 +36,10 @@ rule token = parse
     | white+                { token lexbuf }
     | endline               { newline lexbuf; token lexbuf }
     | eof                   { EOF (pos lexbuf) }
-    | integer               { CONSTINT (pos lexbuf, Int32.Parse(lexeme lexbuf)) }
+    | integer               { INT32 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
+    | integer 'B'           { INT8  (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
+    | integer 'S'           { INT16 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
+    | integer 'L'           { INT64 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
 $for((str, defn) in defs)\
     | "$(str)"              { $(defn) (pos lexbuf) }
 $endfor\
