@@ -122,7 +122,7 @@ type ClassDeclA = Annot<ClassDecl>
 
 
 type InterfaceDecl =
-    | InterfaceProc of (*name*) string * (*type*) PType
+    | InterfaceProc of (*name*) string * (*params*) list<Param> * (*returnType*) PType
     with
     interface IVisibility with
         member x.Visibility = Public

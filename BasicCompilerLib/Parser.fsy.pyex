@@ -64,7 +64,7 @@ identDotSeq:
     | IDENT
         { v \$1 }
     | IDENT DOT identDotSeq
-        { \$1 + "." + \$3 }
+        { v \$1 + "." + \$3 }
 
 visibility:
     | /* empty */
@@ -78,23 +78,23 @@ namespaceDecls:
     | /* empty */
         { [] }
     | visibility CLASS IDENT LCURLY classDecls RCURLY namespaceDecls
-        { ambb (Class (v \$3, \$2, \$5)) \$1 \$4 :: \$7 }
+        { ambb (Class (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
     | visibility INTERFACE IDENT LCURLY interfaceDecls RCURLY namespaceDecls
         { ambb (Interface (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
 
 interfaceDecls:
     | /* empty */
         { [] }
-    | IDENT LPAR params RPAR SEMI interfaceDecls
-        { amab (InterfaceProc (v \$1, \$3)) (p \$1) \$4 :: \$5 }
+    | IDENT LPAR params RPAR possibleReturnType SEMI interfaceDecls
+        { ambb (InterfaceProc (v \$1, \$3, \$5)) (p \$1) \$6 :: \$7 }
 
 possibleType:
     | /* empty */
         { Undef }
-    | type
+    | ptype
         { \$1 }
 
-type:
+ptype:
     | LPAR RPAR
         { Unit }
     | identDotSeq
@@ -106,36 +106,30 @@ type:
             | "Bool"  -> Bool
             | _ -> UserType \$1
         }
-    | type ARROW type
+    | ptype ARROW ptype
         { PFunc (\$1, \$3) }
-    | LPAR type RPAR
+    | LPAR ptype RPAR
         { \$2 }
 
 classDecls:
     | /* empty */
         { [] }
     | visibility VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
-        { ambb (ClassVar (\$3, \$1, \$5, \$7)) \$2 \$8 :: \$9 }
-    | visibility IDENT LPAR params RPAR possibleReturnType EQUALS expr2
-        { amba (ClassProc (\$2, \$1, \$4, \$6, \$8)) \$2 \$8 }
+        { ambb (ClassVar (v \$3, \$1, \$5, \$7)) \$2 \$8 :: \$9 }
+    | visibility IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
+        { amba (ClassProc (v \$2, \$1, \$4, \$6, \$8)) (p \$2) \$8 :: \$9 }
 
 possibleReturnType:
     | /* empty */
         { Unit }
-    | type
+    | ptype
         { \$1 }
 
 params:
     | /* empty */
         { [] }
-    | param params
-        { \$1 :: \$2 }
-
-param:
-    | IDENT
-        { Param(\$1, Undef) }
-    | LPAR IDENT COLON type RPAR
-        { Param(\$1, \$3) }
+    | IDENT COLON ptype COMMA params
+        { Param(v \$1, \$3) :: \$5 }
 
 
 expr0:
@@ -154,9 +148,9 @@ expr1:
     | RETURN expr3 SEMI
         { amba (Return \$2) \$1 \$2 }
     | IF LPAR expr3 RPAR expr2 ELSE expr2 SEMI
-        { ambb (If (\$3, \$5, \$7)) \$1 \$5 }
+        { amba (If (\$3, \$5, \$7)) \$1 \$5 }
     | WHILE LPAR expr3 RPAR expr2
-        { amba (While (\$3, \$5)) \$1 \$4 }
+        { ambb (While (\$3, \$5)) \$1 \$4 }
     | expr2 
         { \$1 }
 
@@ -181,23 +175,16 @@ $for(binop in binops)\
     | expr3 $(binop.upper()) expr3
         { amaa (Binop ($(binop), \$1, \$3)) \$1 \$3 }
 $endfor\
-    | IDENT callExprList  
+    | IDENT LPAR argList RPAR  
         { ambb (Call (v \$1, \$3)) (p \$1) \$4 }
     | IDENT
-$py(varRule="(a (Var (v \$1)) (p \$1))")
-        { $(varRule) }
+        { a (Var (v \$1)) (p \$1) }
     | LPAR expr3 RPAR
         { \$2 }
 
 
-callExprList:
-    | bareIdentOrExpr
-        { \$1 }
-    | bareIdentOrExpr callExprList
-        { \$1 :: \$2 }
-
-bareIdentOrExpr:
-    | IDENT
-        { [$(varRule)] }
-    | LPAR expr3 RPAR
-        { \$2 }
+argList:
+    | /* empty */
+        { [] }
+    | expr3 COMMA argList
+        { \$1 :: \$3 }
