@@ -12,7 +12,7 @@ type Op =
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
 
-type PType = Undef | Unit | Int of int | Bool | UserType of string | PFunc of PType * PType
+type PType = Undef | Decl | Unit | Int of int | Bool | UserType of string | PFunc of PType * PType
     with
     override x.ToString() = fmt x
     member x.IsFunc = match x with
@@ -31,6 +31,7 @@ type PType = Undef | Unit | Int of int | Bool | UserType of string | PFunc of PT
                 let funcPt:PType = Option.get resFuncPt
                 if funcPt.IsFunc && argPt = funcPt.NextArg then Some (funcPt.FollowingArg) else None)) (Some x)
 
+
 let parsePType str = match str with
     | "Unit" -> Unit
     | "Int" -> Int 32
@@ -41,7 +42,7 @@ type Pos(startPos:Position, endPos:Position) =
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
-type RefType = Local | Parameter
+type RefType = Local | Parameter | Global
 
 type Ref(name:string, ptype:PType, reftype: RefType) =
     member x.Name = name
@@ -51,9 +52,22 @@ type Ref(name:string, ptype:PType, reftype: RefType) =
     member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDEAD0000
     override x.ToString() = sprintf "%s:%s%s" x.Name (fmt x.PType) (if x.IsUninitialised then ":Uninit" else "")
 
-type SRP = KeyValuePair<string, Ref>
+type Param(name: string, ptype: PType) =
+    member x.Name = name
+    member x.PType = ptype
+    override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
-type Annot<'a>(item:'a, pos:Pos) =
+type Visibility =
+    | Private
+    | Public
+
+type IVisibility =
+    abstract Visibility : Visibility
+
+let qualifiedName namespace_ name = namespace_ + "." + name
+
+[<AbstractClass>]
+type Annot(pos:Pos) =
     let mutable refs:Map<string,Ref> = Map.empty;
     let filterRefs refType =
         Map.filter (fun k (v:Ref) -> v.RefType = refType) refs
@@ -62,24 +76,48 @@ type Annot<'a>(item:'a, pos:Pos) =
     member x.Refs = refs
     member x.AddRef(ref:Ref) = refs <- refs.Add(ref.Name, ref)
     member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
-    member x.GetRef(name) = Map.find name refs
+    member x.GetRef(name) =
+        try Map.find name refs
+        with KeyNotFoundException -> x.Globals.[name]
     member x.LocalRefs with get () = filterRefs Local
     member x.ParamRefs with get () = filterRefs Parameter
+
+    member val Globals:Dictionary<string,Ref> = null with get, set
+    member x.AddGlobal(ref:Ref) =
+        if x.Globals.ContainsKey(ref.Name) then
+            failwithf "Already have the global ref %s" ref.Name
+        else
+            x.Globals.[ref.Name] <- ref
+
+    member val CIGlobals:Dictionary<string,CIRef> = null with get, set
+    member x.AddCIGlobal(ref:CIRef) =
+        if x.CIGlobals.ContainsKey(ref.Name) then
+            failwithf "Already have the ClassIntefaceGlobal ref %s" ref.Name
+        else
+            x.CIGlobals.[ref.Name] <- ref
 
     member val LocalVars:list<Ref> = [] with get, set
 
     member x.Pos = pos
-    member x.Item = item
     member val PType = Undef with get, set
+    abstract member ItemObj : obj
+    member x.ItemAs<'a>():'a = downcast x.ItemObj
 
-    override x.ToString() = fmt x.Item + match x.PType with
+    member val UsingContext:list<string> = [] with get, set
+    member val Namespace = "" with get, set
+
+    override x.ToString() = fmt x.ItemObj + match x.PType with
         | Undef -> ""
         | _ -> ":" + fmt x.PType
         (*":" + x.Pos.ToString() +
         ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
+
+and CIRef(name:string, decl:NamespaceDeclA) =
+    member x.Name = name
+    member x.Decl = decl
         
 
-type Expr =
+and Expr =
     | ConstInt of (*size*) int * (*value*) int64
     | ConstBool of bool
     | ConstUnit
@@ -94,22 +132,13 @@ type Expr =
     | While of ExprA * ExprA
     | Seq of ExprA * ExprA
 
-and ExprA = Annot<Expr>
-
-type Param(name: string, ptype: PType) =
-    member x.Name = name
-    member x.PType = ptype
-    override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
-
-type Visibility =
-    | Private
-    | Public
-
-type IVisibility =
-    abstract Visibility : Visibility
+and ExprA(item:Expr, pos:Pos) =
+    inherit Annot(pos)
+    member x.Item = item
+    override x.ItemObj = item :> obj
 
 
-type ClassDecl =
+and ClassDecl =
     | ClassVar of string * Visibility * PType * ExprA
     | ClassProc of (*name*) string * Visibility * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
     with
@@ -118,19 +147,25 @@ type ClassDecl =
             | ClassVar (_, vis, _, _) -> vis
             | ClassProc (_, vis, _, _, _) -> vis
 
-type ClassDeclA = Annot<ClassDecl>
+and ClassDeclA(item:ClassDecl, pos:Pos) =
+    inherit Annot(pos)
+    member x.Item = item
+    override x.ItemObj = upcast item
 
 
-type InterfaceDecl =
+and InterfaceDecl =
     | InterfaceProc of (*name*) string * (*params*) list<Param> * (*returnType*) PType
     with
     interface IVisibility with
         member x.Visibility = Public
 
-type InterfaceDeclA = Annot<InterfaceDecl>
+and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
+    inherit Annot(pos)
+    member x.Item = item
+    override x.ItemObj = upcast item
 
 
-type NamespaceDecl =
+and NamespaceDecl =
     | Class of string * Visibility * list<ClassDeclA>
     | Interface of string * Visibility * list<InterfaceDeclA>
     with
@@ -139,17 +174,24 @@ type NamespaceDecl =
             | Class (_, vis, _) -> vis
             | Interface (_, vis, _) -> vis
 
-type NamespaceDeclA = Annot<NamespaceDecl>
+and NamespaceDeclA(item:NamespaceDecl, pos:Pos) = 
+    inherit Annot(pos)
+    member x.Item = item
+    override x.ItemObj = upcast item
 
 
 type TopDecl =
     | Using of string
     | Namespace of string * list<NamespaceDeclA>
 
-type TopDeclA = Annot<TopDecl>
+type TopDeclA(item:TopDecl, pos:Pos) =
+    inherit Annot(pos)
+    member x.Item = item
+    override x.ItemObj = upcast item
 
 
-type Program = list<TopDeclA>
+type CompilationUnit = list<TopDeclA>
+type Program = list<CompilationUnit>
 
 type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) =
     member x.Name = name
@@ -161,8 +203,8 @@ type Environ(module_: ModuleRef, enclosingFunc: Ref) =
     member x.EnclosingFunc = enclosingFunc
 
 
-let rec foldAST branchFunc leafFunc (exprA:ExprA) =
-    let fAST e = foldAST branchFunc leafFunc e
+let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (exprA:ExprA) =
+    let fAST e = foldASTExpr branchFunc leafFunc e
     let bf1 branch e = branchFunc branch <| [fAST e]
     let bf branch es = branchFunc branch <| List.map fAST es
     match exprA.Item with
@@ -179,3 +221,33 @@ let rec foldAST branchFunc leafFunc (exprA:ExprA) =
         | If (test, then_, else_) -> bf exprA [test; then_; else_]
         | While (test, body) -> bf exprA [test; body]
         | Seq (e1A, e2A) -> bf exprA [e1A; e2A]
+
+let foldASTClassDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (cdecl:ClassDeclA) =
+    let fAST e = foldASTExpr branchFunc leafFunc e
+    match cdecl.Item with
+        | ClassVar (_, _, _, exprA) -> branchFunc cdecl [fAST exprA]
+        | ClassProc (_, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
+
+let foldASTInterfaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (idecl:InterfaceDeclA) =
+    leafFunc idecl
+
+let foldASTNamespaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (ndecl:NamespaceDeclA) =
+    let fAST fASTFunc declAs = branchFunc ndecl <| List.map (fASTFunc branchFunc leafFunc) declAs
+    match ndecl.Item with
+        | Class (_, _, cdeclAs) -> fAST foldASTClassDecl cdeclAs
+        | Interface (_, _, ideclAs) -> fAST foldASTInterfaceDecl ideclAs
+
+let foldASTTopDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (tdecl:TopDeclA) =
+    match tdecl.Item with
+        | Namespace (_, namespaces) -> branchFunc tdecl <| List.map (foldASTNamespaceDecl branchFunc leafFunc) namespaces
+        | Using _ -> leafFunc tdecl
+
+let foldASTCompilationUnit branchFunc leafFunc (cu:CompilationUnit) =
+    List.map (foldASTTopDecl branchFunc leafFunc) cu
+
+let foldASTProgram branchFunc leafFunc (prog:Program) =
+    List.map (foldASTCompilationUnit branchFunc leafFunc) prog
+
+let iterAST foldFunc (f:Annot -> 'a) =
+    let bf x (_:list<'a>) = f x
+    foldFunc bf f

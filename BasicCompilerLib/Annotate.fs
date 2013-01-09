@@ -5,6 +5,14 @@ open Print
 open Tree
 open Builtins
 
+let paramsReturnTypeToPtype params_ returnType =
+    let paramPtypes = List.rev params_
+                      |> Seq.map (fun (p:Param) -> p.PType)
+
+    let funcPtypes = if params_.Length = 0 then Seq.ofArray [|Unit|] else paramPtypes
+    Seq.fold (fun acc ty -> PFunc (ty, acc)) returnType funcPtypes
+
+
 type Env(localVars:list<Ref>) =
     let mutable i = 0;
     let mutable localVars = localVars
@@ -75,8 +83,8 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
             annotateTypesExpr env e1A.Refs e2A
             e2A.PType
 
-let annotateTypesDecl (declA:DeclA) = match declA.Item with
-    | Proc (name, params_, returnType, exprA) ->
+let annotateClassDecl (declA:ClassDeclA) = match declA.Item with
+    | ClassProc (name, vis, params_, returnType, exprA) ->
         // Add the parameters to the body's environment
         Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
         let env = Env([])
@@ -88,18 +96,70 @@ let annotateTypesDecl (declA:DeclA) = match declA.Item with
         annotateTypesExpr env declA.Refs exprA
         declA.LocalVars <- env.LocalVars
 
+let annotateInterfaceDecl (ideclA:InterfaceDeclA) = match ideclA.Item with
+    | InterfaceProc (name, params_, returnType) ->
+        let ptype = paramsReturnTypeToPtype params_ returnType
+        ideclA.PType <- ptype
+        let qname = qualifiedName ideclA.Namespace name
+        ideclA.AddGlobal(Ref(qname, ptype, Global))
+
+let annotateNamespaceDecl (ndeclA:NamespaceDeclA) =
+    // Add things to the global store if they are public
+    let addGlobalIfPublic name vis =
+        let qname = qualifiedName ndeclA.Namespace name
+        if vis = Public then
+            ndeclA.AddCIGlobal(CIRef(qname, ndeclA))
+
+    match ndeclA.Item with
+        | Class (name, vis, cdeclAs) ->
+            addGlobalIfPublic name vis
+            List.iter annotateClassDecl cdeclAs
+        | Interface (name, vis, ideclAs) ->
+            addGlobalIfPublic name vis
+            List.iter annotateInterfaceDecl ideclAs
+
+
+let annotateNamespace (namespace_:TopDeclA) = match namespace_.Item with
+    | Namespace (name, ndeclAs) ->
+        // Add the namespace name to all subthings
+        iterAST foldASTTopDecl (fun itemA -> itemA.Namespace <- name) namespace_ |> ignore
+        // Annotate all subthings
+        Seq.iter annotateNamespaceDecl ndeclAs
+    |  _ -> failwithf "Expecting namespace"
+
+let annotateCompilationUnit globals (cu:CompilationUnit) =
+    // Find all the usings and collect them together
+    let usings = Seq.fold (fun usingList (declA:TopDeclA) -> match declA.Item with
+        | Using str -> str :: usingList
+        | _ -> usingList) [] cu
+
+    // Add usings to namespace contexts
+    let namespaces = (Seq.filter (fun (declA:TopDeclA) -> match declA.Item with
+        | Namespace (name, decls) ->
+            // Add the UsingContext to all subobjects
+            iterAST foldASTTopDecl (fun itemA -> itemA.UsingContext <- usings) declA |> ignore
+            true
+        | _ -> false)) cu
+
+    Seq.iter annotateNamespace namespaces
 
 let annotate (program:Program) =
+    
+    // Create new globals dictionaries and add reference to every node in the tree
+    let globals = new Dictionary<string, Ref>()
+    let ciglobals = new Dictionary<string, CIRef>()
+    let addGlobals (annot:Annot) =
+        annot.Globals <- globals
+        annot.CIGlobals <- ciglobals
+    iterAST foldASTProgram (fun itemA -> addGlobals itemA) program |> ignore
+
+    // annotate each compilation unit
+    Seq.iter (annotateCompilationUnit globals) program
 
     // Create an initial map of refs with all the functions return types
-    let initRefs = Seq.map (fun (declA:DeclA) -> match declA.Item with
-            | Proc (name, params_, returnType, _) ->
-                let paramPtypes = List.rev params_
-                                  |> Seq.map (fun (p:Param) -> p.PType)
-
-                let funcPtypes = if params_.Length = 0 then Seq.ofArray [|Unit|] else paramPtypes
-
-                let ptype = Seq.fold (fun acc ty -> PFunc (ty, acc)) returnType funcPtypes
+    let initRefs = Seq.map (fun (declA:ClassDeclA) -> match declA.Item with
+            | ClassProc (name, vis, params_, returnType, _) ->
+                let ptype = paramsReturnTypeToPtype params_ returnType
                 (name, Ref(name, ptype, Local))) program |> Map.ofSeq
                 
     // Do a series of annotation passes
