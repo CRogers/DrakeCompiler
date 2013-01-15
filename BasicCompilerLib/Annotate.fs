@@ -111,9 +111,8 @@ let annotateInterfaceDecl (ideclA:InterfaceDeclA) = match ideclA.Item with
 let annotateNamespaceDecl (ndeclA:NamespaceDeclA) =
     // Add things to the global store if they are public
     let addGlobalIfPublic name vis =
-        let qname = qualifiedName ndeclA.Namespace name
         if vis = Public then
-            ndeclA.AddCIGlobal(CIRef(qname, ndeclA))
+            ndeclA.GlobalDecls.AddNamespaceDecl(ndeclA)
 
     match ndeclA.Item with
         | Class (name, vis, cdeclAs) ->
@@ -151,12 +150,8 @@ let annotateCompilationUnit globals (cu:CompilationUnit) =
 let annotate (program:Program) =
     
     // Create new globals dictionaries and add reference to every node in the tree
-    let globals = new Dictionary<string, Ref>()
-    let ciglobals = new Dictionary<string, CIRef>()
-    let addGlobals (annot:Annot) =
-        annot.Globals <- globals
-        annot.CIGlobals <- ciglobals
-    iterAST foldASTProgram (fun itemA -> addGlobals itemA) program |> ignore
+    let globals = GlobalDeclStore()
+    iterAST foldASTProgram (fun itemA -> itemA.GlobalDecls <- globals) program |> ignore
 
     // annotate each compilation unit
     Seq.iter (annotateCompilationUnit globals) program

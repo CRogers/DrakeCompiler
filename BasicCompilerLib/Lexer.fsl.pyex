@@ -23,7 +23,7 @@ $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY")])\
 $py(defs+=[("+", "ADD"), ("-", "SUB"), ("/", "DIV"), ("*", "MUL"), (":", "COLON"), (";", "SEMI")])\
 $py(defs+=[(",", "COMMA"), ("=", "EQUALS"), ("&&", "BOOLAND"), ("||", "BOOLOR"), ("!", "NOT")])\
 $py(defs+=[("<", "LT"), (">", "GT"), ("<=", "LTEQ"), (">=", "GTEQ"), ("==", "EQ")])\
-$py(defs+=[(".", "DOT"), ("->", "ARROW")])\
+$py(defs+=[(".", "DOT"), ("->", "ARROW"), ("::", "SRO")])\
 
 }
 

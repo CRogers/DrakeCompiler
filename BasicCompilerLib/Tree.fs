@@ -7,6 +7,13 @@ open System.Collections.Generic
 open System.Collections.ObjectModel
 open System
 
+type OptionBuilder() =
+    member x.Bind(v,f) = Option.bind f v
+    member x.Return v = Some v
+    member x.ReturnFrom o = o
+
+let opt = OptionBuilder()
+
 type Op = 
     | Add | Sub | Mul | Div
     | BoolAnd | BoolOr | Not
@@ -42,7 +49,7 @@ type Pos(startPos:Position, endPos:Position) =
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
-type RefType = Local | Parameter | Global
+type RefType = Local | Parameter
 
 type Ref(name:string, ptype:PType, reftype: RefType) =
     member x.Name = name
@@ -64,10 +71,52 @@ type Visibility =
 type IVisibility =
     abstract Visibility : Visibility
 
-let qualifiedName namespace_ (names:list<string>) = namespace_ + "." + String.Join(".", names)
+type GlobalDeclStore() =
+    let dict = new Dictionary<string, Dictionary<string, NamespaceDeclA>>()
 
-[<AbstractClass>]
-type Annot(pos:Pos) =
+    member x.AddNamespaceDecl(ndeclA:NamespaceDeclA) =
+        let namespace_ = ndeclA.Namespace
+        if not <| dict.ContainsKey(namespace_) then
+            dict.[namespace_] <- new Dictionary<string, NamespaceDeclA>()
+        dict.[namespace_].Add(ndeclA.Name, ndeclA)
+
+    member x.GetNamespaceDecl(currentNamespace, usings:list<string>, possiblyQualifiedName:string) = 
+        let split = possiblyQualifiedName.Split([|"::"|], StringSplitOptions.None)
+        let declName = Seq.last <| split
+
+        // Case 1: The Namespace::Is::Fuly::Qualified
+        if split.Length = 0 then
+            let namespaceSeq = Seq.take (split.Length-1) split
+            let namespace_ = String.Join("::", namespaceSeq)
+            dict.[namespace_].[declName]
+        // Case 2: Not qualified
+        else
+            let tryGet namespace_ =
+                if dict.[currentNamespace].ContainsKey(declName) then
+                    Some <| dict.[currentNamespace].[declName]
+                else
+                    None
+            // TODO: Error on multiple possibilities found
+            // Check current namespace first
+            match tryGet currentNamespace with
+                | Some decl -> decl
+                | None ->
+                    // Check using namespaces in order
+                    let possibles = Seq.map tryGet usings
+                    let numPossibles = Seq.sumBy (fun x -> if x = None then 0 else 1) possibles
+                    if numPossibles = 0 then
+                        failwithf "Cannot find any decl of name %s" possiblyQualifiedName
+                    else if numPossibles > 1 then
+                        failwithf "Multiple possible decls found for %s" possiblyQualifiedName
+                    else
+                        Option.get <| Seq.find Option.isSome possibles
+                        
+        
+
+
+        
+
+and [<AbstractClass>] Annot(pos:Pos) =
     let mutable refs:Map<string,Ref> = Map.empty;
     let filterRefs refType =
         Map.filter (fun k (v:Ref) -> v.RefType = refType) refs
@@ -76,31 +125,11 @@ type Annot(pos:Pos) =
     member x.Refs = refs
     member x.AddRef(ref:Ref) = refs <- refs.Add(ref.Name, ref)
     member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
-    member x.GetRef(name) =
-        try Map.find name refs
-        with KeyNotFoundException -> x.Globals.[name]
+    member x.GetRef(name) = Map.find name refs
     member x.LocalRefs with get () = filterRefs Local
     member x.ParamRefs with get () = filterRefs Parameter
 
-    member val Globals:Dictionary<string,Ref> = null with get, set
-    member x.AddGlobal(ref:Ref) =
-        if x.Globals.ContainsKey(ref.Name) then
-            failwithf "Already have the global ref %s" ref.Name
-        else
-            x.Globals.[ref.Name] <- ref
-
-    member val CIGlobals:Dictionary<string,Dictionary<string,CIRef>> = null with get, set
-
-    member x.AddCIGlobal(namespace_:string, name:string, ndeclA:NamespaceDeclA) =
-        let qname = qualifiedName namespace_ [name]
-        if not <| x.CIGlobals.ContainsKey(namespace_) then
-            x.CIGlobals.[namespace_] <- new Dictionary<string,CIRef>()
-        let subdict = x.CIGlobals.[namespace_]
-        
-        if subdict.ContainsKey(name) then
-            failwithf "Already have the ClassIntefaceGlobal ref %s" qname
-        else
-            subdict.[name] <- CIRef(qname, ndeclA)
+    member val GlobalDecls:GlobalDeclStore = GlobalDeclStore() with get, set
 
     member val LocalVars:list<Ref> = [] with get, set
 
@@ -117,12 +146,6 @@ type Annot(pos:Pos) =
         | _ -> ":" + fmt x.PType
         (*":" + x.Pos.ToString() +
         ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
-
-and CIRef(namespace_:string, name:string, decl:NamespaceDeclA) =
-    member x.Namespace = namespace_
-    member x.Name = name
-    member x.QName = qualifiedName namespace_ [name]
-    member x.Decl = decl
         
 
 and Expr =
@@ -149,43 +172,64 @@ and ExprA(item:Expr, pos:Pos) =
 and ClassDecl =
     | ClassVar of string * Visibility * PType * ExprA
     | ClassProc of (*name*) string * Visibility * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
-    with
-    interface IVisibility with
-        member x.Visibility = match x with
-            | ClassVar (_, vis, _, _) -> vis
-            | ClassProc (_, vis, _, _, _) -> vis
+    
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = upcast item
 
+    member x.Visibility = match x.Item with
+        | ClassVar (_, vis, _, _) -> vis
+        | ClassProc (_, vis, _, _, _) -> vis
+
+    member x.Name = match x.Item with
+        | ClassVar (name, _, _, _) -> name
+        | ClassProc (name, _, _, _, _) -> name
+
 
 and InterfaceDecl =
     | InterfaceProc of (*name*) string * (*params*) list<Param> * (*returnType*) PType
-    with
-    interface IVisibility with
-        member x.Visibility = Public
+    
 
 and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = upcast item
 
+    member x.Visibility = Public
+
+    member x.Name = match x.Item with
+        | InterfaceProc (name, _, _) -> name
 
 and NamespaceDecl =
     | Class of string * Visibility * list<ClassDeclA>
     | Interface of string * Visibility * list<InterfaceDeclA>
-    with
-    interface IVisibility with
-        member x.Visibility = match x with
-            | Class (_, vis, _) -> vis
-            | Interface (_, vis, _) -> vis
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) = 
     inherit Annot(pos)
-    member x.Item = item
+    member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
+
+    member x.Visibility = match x.Item with
+            | Class (_, vis, _) -> vis
+            | Interface (_, vis, _) -> vis
+
+    member x.Name = match x.Item with
+        | Class (name, _, _) -> name
+        | Interface (name, _, _) -> name
+
+    member x.QualifiedName = x.Namespace + "::" + x.Name
+
+    member x.GetClassDecl(name) = match x.Item with
+        | Class (_, _, cdeclAs) -> List.tryFind (fun (c:ClassDeclA) -> c.Name = name) cdeclAs
+
+    member x.GetClassDecl(name, vis) = Option.exists (fun (cd:ClassDeclA) -> cd.Visibility = vis) <| x.GetClassDecl(name)
+
+    member x.GetInterfaceDecl(name) = match x.Item with
+        | Interface (_, _, ideclAs) -> List.tryFind (fun (i:InterfaceDeclA) -> i.Name = name) ideclAs
+
+    member x.GetInterfaceDecl(name, vis) = Option.exists (fun (cd:InterfaceDeclA) -> cd.Visibility = vis) <| x.GetInterfaceDecl(name)
 
 
 type TopDecl =

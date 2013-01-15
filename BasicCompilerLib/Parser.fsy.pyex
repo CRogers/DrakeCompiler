@@ -31,7 +31,7 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 %token<Pos>            IF THEN ELSE WHILE DO VAR
 %token<Pos>            NAMESPACE CLASS INTERFACE
 %token<Pos>            PRIVATE PUBLIC
-%token<Pos>            ARROW USING DOT
+%token<Pos>            ARROW USING DOT SRO
 
 %type<Program> program
 %start program
@@ -55,10 +55,16 @@ program: topLevelDecls EOF
 topLevelDecls:
     | /* empty */
         { [] }
-    | USING identDotSeq SEMI topLevelDecls
+    | USING scopeResolvedName SEMI topLevelDecls
         { ambb (Using \$2) \$1 \$3 :: \$4 }
-    | NAMESPACE identDotSeq LCURLY namespaceDecls RCURLY topLevelDecls
+    | NAMESPACE scopeResolvedName LCURLY namespaceDecls RCURLY topLevelDecls
         { ambb (Namespace (\$2, \$4)) \$1 \$3 :: \$6 }
+
+scopeResolvedName:
+    | ident
+        { v \$1 }
+    | ident SRO scopeResolvedName
+        { v \$1 + "::" + \$3 }
 
 identDotSeq:
     | IDENT
