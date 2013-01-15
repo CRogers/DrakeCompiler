@@ -85,6 +85,11 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
 
 let annotateClassDecl (declA:ClassDeclA) = match declA.Item with
     | ClassProc (name, vis, params_, returnType, exprA) ->
+        // If the item is visible, add it to globals
+        if vis = Public then
+            let qname = qualifiedName declA.Namespace [declA.Class; name]
+            declA.AddGlobal(Ref())
+
         // Add the parameters to the body's environment
         Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
         let env = Env([])
@@ -100,7 +105,7 @@ let annotateInterfaceDecl (ideclA:InterfaceDeclA) = match ideclA.Item with
     | InterfaceProc (name, params_, returnType) ->
         let ptype = paramsReturnTypeToPtype params_ returnType
         ideclA.PType <- ptype
-        let qname = qualifiedName ideclA.Namespace name
+        let qname = qualifiedName ideclA.Namespace [name]
         ideclA.AddGlobal(Ref(qname, ptype, Global))
 
 let annotateNamespaceDecl (ndeclA:NamespaceDeclA) =

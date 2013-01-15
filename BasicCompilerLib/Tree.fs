@@ -64,7 +64,7 @@ type Visibility =
 type IVisibility =
     abstract Visibility : Visibility
 
-let qualifiedName namespace_ name = namespace_ + "." + name
+let qualifiedName namespace_ (names:list<string>) = namespace_ + "." + String.Join(".", names)
 
 [<AbstractClass>]
 type Annot(pos:Pos) =
@@ -89,12 +89,18 @@ type Annot(pos:Pos) =
         else
             x.Globals.[ref.Name] <- ref
 
-    member val CIGlobals:Dictionary<string,CIRef> = null with get, set
-    member x.AddCIGlobal(ref:CIRef) =
-        if x.CIGlobals.ContainsKey(ref.Name) then
-            failwithf "Already have the ClassIntefaceGlobal ref %s" ref.Name
+    member val CIGlobals:Dictionary<string,Dictionary<string,CIRef>> = null with get, set
+
+    member x.AddCIGlobal(namespace_:string, name:string, ndeclA:NamespaceDeclA) =
+        let qname = qualifiedName namespace_ [name]
+        if not <| x.CIGlobals.ContainsKey(namespace_) then
+            x.CIGlobals.[namespace_] <- new Dictionary<string,CIRef>()
+        let subdict = x.CIGlobals.[namespace_]
+        
+        if subdict.ContainsKey(name) then
+            failwithf "Already have the ClassIntefaceGlobal ref %s" qname
         else
-            x.CIGlobals.[ref.Name] <- ref
+            subdict.[name] <- CIRef(qname, ndeclA)
 
     member val LocalVars:list<Ref> = [] with get, set
 
@@ -112,8 +118,10 @@ type Annot(pos:Pos) =
         (*":" + x.Pos.ToString() +
         ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
 
-and CIRef(name:string, decl:NamespaceDeclA) =
+and CIRef(namespace_:string, name:string, decl:NamespaceDeclA) =
+    member x.Namespace = namespace_
     member x.Name = name
+    member x.QName = qualifiedName namespace_ [name]
     member x.Decl = decl
         
 
