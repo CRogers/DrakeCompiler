@@ -7,42 +7,31 @@ open System.Collections.Generic
 open System.Collections.ObjectModel
 open System
 
-type OptionBuilder() =
-    member x.Bind(v,f) = Option.bind f v
-    member x.Return v = Some v
-    member x.ReturnFrom o = o
-
-let opt = OptionBuilder()
-
 type Op = 
     | Add | Sub | Mul | Div
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
 
-type PType = Undef | Decl | Unit | Int of int | Bool | UserType of string | PFunc of PType * PType
+type PType = 
+    | Undef
+    | UserType of string
+    | PFunc of (*arg types*) list<PType> * (*return type*) PType
     with
     override x.ToString() = fmt x
-    member x.IsFunc = match x with
-        | PFunc _ -> true
-        | _ -> false
-    member x.NextArg = match x with
-        | PFunc (x, y) -> x
-        | _ -> failwithf "%s is not of type PFunc!" (x.ToString())
-    member x.FollowingArg = match x with
-        | PFunc (x, y) -> y
-        | _ -> failwithf "%s is not of type PFunc!" (x.ToString())
-    member x.ConsumeArgs(argPtypes) =
-        argPtypes
-        |> Seq.fold (fun resFuncPt argPt ->
-            if Option.isNone resFuncPt then None else (
-                let funcPt:PType = Option.get resFuncPt
-                if funcPt.IsFunc && argPt = funcPt.NextArg then Some (funcPt.FollowingArg) else None)) (Some x)
 
+type CommonPtype =
+    | Unit
+    | Int of int
+    | Bool
+    | String
 
-let parsePType str = match str with
-    | "Unit" -> Unit
-    | "Int" -> Int 32
-    | "Bool" -> Bool
+let cpPrefix x = "System::" + x 
+
+let commonPtype x = UserType (cpPrefix <| match x with
+    | Unit   -> "Unit"
+    | Int i  -> "Int" + i.ToString()
+    | Bool   -> "Bool"
+    | String -> "String")
 
 type Pos(startPos:Position, endPos:Position) =
     member x.StartPos = startPos
@@ -197,8 +186,6 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member x.Item = item
     override x.ItemObj = upcast item
 
-    member x.Visibility = Public
-
     member x.Name = match x.Item with
         | InterfaceProc (name, _, _) -> name
 
@@ -228,8 +215,6 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
 
     member x.GetInterfaceDecl(name) = match x.Item with
         | Interface (_, _, ideclAs) -> List.tryFind (fun (i:InterfaceDeclA) -> i.Name = name) ideclAs
-
-    member x.GetInterfaceDecl(name, vis) = Option.exists (fun (cd:InterfaceDeclA) -> cd.Visibility = vis) <| x.GetInterfaceDecl(name)
 
 
 type TopDecl =

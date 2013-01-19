@@ -5,12 +5,9 @@ open Print
 open Tree
 open Builtins
 
-let paramsReturnTypeToPtype params_ returnType =
-    let paramPtypes = List.rev params_
-                      |> Seq.map (fun (p:Param) -> p.PType)
-
-    let funcPtypes = if params_.Length = 0 then Seq.ofArray [|Unit|] else paramPtypes
-    Seq.fold (fun acc ty -> PFunc (ty, acc)) returnType funcPtypes
+let paramsReturnTypeToPtype (params_:list<Param>) returnType =
+    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
+    PFunc (ptypeParams, returnType)
 
 
 type Env(localVars:list<Ref>) =
@@ -25,10 +22,10 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
     exprA.AddRefs(prevRefs)
     let aTE env eA = annotateTypesExpr env exprA.Refs eA
     exprA.PType <- match exprA.Item with
-        | ConstInt _ ->  Int 32
-        | ConstBool _ -> Bool
-        | ConstUnit -> Unit
-        | Var n -> exprA.GetRef(n).PType
+        | ConstInt (size, _) -> commonPtype <| Int size
+        | ConstBool _        -> commonPtype Bool
+        | ConstUnit          -> commonPtype Unit
+        | Var n              -> exprA.GetRef(n).PType
         | Binop (op, l, r) ->
             aTE env l
             aTE env r
@@ -40,15 +37,14 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
         | Call (name, exprAs) ->
             Seq.iter (aTE env) exprAs
             // Check to see if call works/what result is
-            let exprAsPtypes = if exprAs.Length = 0 then [Unit] 
-                               else List.map (fun (exprA:ExprA) -> exprA.PType) exprAs
-            let funcPtype = exprA.GetRef(name).PType
-            let res = funcPtype.ConsumeArgs(exprAsPtypes)
-            if Option.isNone res then failwithf "Incorrect type for call to %s" name
-            else (
-                let r = Option.get res
-                if r.IsFunc then failwithf "Currying not supported!"
-                else r) 
+            let exprAsPtypes = List.map (fun (exprA:ExprA) -> exprA.PType) exprAs
+            let funcPtype = exprA.GlobalDecls.GetNamespaceDecl(exprA.Namespace, exprA.UsingContext, name)
+            match funcPtype with
+                | PFunc (argTypes, returnType) ->
+                    if not (argTypes = exprAsPtypes) then
+                        failwithf "Incorrect function args"
+                    returnType
+                | _ -> failwithf "Can only call a function!"
             
         | Assign (name, innerExprA) ->
             aTE env innerExprA
@@ -85,11 +81,6 @@ let rec annotateTypesExpr (env:Env) prevRefs (exprA:ExprA) =
 
 let annotateClassDecl (declA:ClassDeclA) = match declA.Item with
     | ClassProc (name, vis, params_, returnType, exprA) ->
-        // If the item is visible, add it to globals
-        if vis = Public then
-            let qname = qualifiedName declA.Namespace [declA.Class; name]
-            declA.AddGlobal(Ref())
-
         // Add the parameters to the body's environment
         Seq.iter (fun (p:Param) -> declA.AddRef(Ref(p.Name, p.PType, Parameter))) params_
         let env = Env([])
@@ -105,8 +96,6 @@ let annotateInterfaceDecl (ideclA:InterfaceDeclA) = match ideclA.Item with
     | InterfaceProc (name, params_, returnType) ->
         let ptype = paramsReturnTypeToPtype params_ returnType
         ideclA.PType <- ptype
-        let qname = qualifiedName ideclA.Namespace [name]
-        ideclA.AddGlobal(Ref(qname, ptype, Global))
 
 let annotateNamespaceDecl (ndeclA:NamespaceDeclA) =
     // Add things to the global store if they are public
