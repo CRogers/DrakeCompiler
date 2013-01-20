@@ -59,7 +59,10 @@ type IVisibility =
         
 
 type Ref =
-    | LocalRef of string * PType
+    | VarRef of string * PType
+    | ClassVarRef of string * ClassDeclA
+    | ClassProcRef of string * ClassDeclA
+    | InterfaceProcRef of string * InterfaceDeclA
     | ClassRef of string * NamespaceDeclA
     | InterfaceRef of string * NamespaceDeclA
 
@@ -70,13 +73,19 @@ and RefA(name: string, ref: Ref) =
     member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDED
 
     member x.QualifiedName = match ref with
-        | LocalRef (qn, _)     -> qn
-        | ClassRef (qn, _)     -> qn
-        | InterfaceRef (qn, _) -> qn
+        | VarRef (qn, _)           -> qn
+        | ClassVarRef (qn, _)      -> qn
+        | ClassProcRef (qn, _)     -> qn
+        | InterfaceProcRef (qn, _) -> qn
+        | ClassRef (qn, _)         -> qn
+        | InterfaceRef (qn, _)     -> qn
 
     override x.ToString() = 
         match ref with
-            | LocalRef (_, ptype) -> fmt ptype
+            | VarRef (_, ptype)   -> fmt ptype
+            | ClassVarRef _       -> "ClassVar"
+            | ClassProcRef _      -> "ClassProc"
+            | InterfaceProcRef _  -> "InterfaceProc"
             | ClassRef _          -> "Class"
             | InterfaceRef _      -> "Namespace" 
         |> sprintf "%s:%s" x.QualifiedName
@@ -131,7 +140,7 @@ and ExprA(item:Expr, pos:Pos) =
 
 and ClassDecl =
     | ClassVar of string * Visibility * PType * ExprA
-    | ClassProc of (*name*) string * Visibility * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
+    | ClassProc of (*name*) string * Visibility * (*static*) bool * (*ctor*) bool * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
     
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
@@ -139,13 +148,15 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member x.Item = item
     override x.ItemObj = upcast item
 
+    member val PType = Undef with get, set
+
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _) -> vis
-        | ClassProc (_, vis, _, _, _) -> vis
+        | ClassProc (_, vis, _, _, _, _, _) -> vis
 
     member x.Name = match x.Item with
         | ClassVar (name, _, _, _) -> name
-        | ClassProc (name, _, _, _, _) -> name
+        | ClassProc (name, _, _, _, _, _, _) -> name
 
 
 and InterfaceDecl =
@@ -156,6 +167,8 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = upcast item
+
+    member val PType = Undef with get, set
 
     member x.Name = match x.Item with
         | InterfaceProc (name, _, _) -> name
@@ -227,7 +240,7 @@ let foldASTClassDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a
     let fAST e = foldASTExpr branchFunc leafFunc e
     match cdecl.Item with
         | ClassVar (_, _, _, exprA) -> branchFunc cdecl [fAST exprA]
-        | ClassProc (_, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
+        | ClassProc (_, _, _, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
 
 let foldASTInterfaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (idecl:InterfaceDeclA) =
     leafFunc idecl

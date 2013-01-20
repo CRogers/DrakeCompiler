@@ -5,10 +5,6 @@ open Print
 open Tree
 open Builtins
 
-let paramsReturnTypeToPtype (params_:list<Param>) returnType =
-    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
-    PFunc (ptypeParams, returnType)
-
 
 type Env(localVars:list<Ref>) =
     let mutable i = 0;
@@ -137,13 +133,11 @@ let annotateCompilationUnit globals (cu:CompilationUnit) =
     Seq.iter annotateNamespace namespaces
 
 let annotate (program:Program) =
+
     
-    // Create new globals dictionaries and add reference to every node in the tree
-    let globals = GlobalDeclStore()
-    iterAST foldASTProgram (fun itemA -> itemA.GlobalDecls <- globals) program |> ignore
 
     // annotate each compilation unit
-    Seq.iter (annotateCompilationUnit globals) program
+    Seq.iter (annotateCompilationUnit) program
 
     // Create an initial map of refs with all the functions return types
     let initRefs = Seq.map (fun (declA:ClassDeclA) -> match declA.Item with

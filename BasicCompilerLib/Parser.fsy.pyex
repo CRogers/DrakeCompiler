@@ -104,13 +104,25 @@ ptype:
     | LPAR ptype RPAR
         { \$2 }
 
+static:
+    | /* empty */
+        { false }
+    | STATIC
+        { true }
+
+ctor:
+    | /* empty */
+        { false }
+    | CONSTRUCTOR
+        { true }
+
 classDecls:
     | /* empty */
         { [] }
     | visibility VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { ambb (ClassVar (v \$3, \$1, \$5, \$7)) \$2 \$8 :: \$9 }
-    | visibility IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
-        { amba (ClassProc (v \$2, \$1, \$4, \$6, \$8)) (p \$2) \$8 :: \$9 }
+    | visibility static ctor IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
+        { amba (ClassProc (v \$4, \$1, \$2 || \$3, \$3 \$6, \$8, \$10)) (p \$4) \$10 :: \$11 }
 
 possibleReturnType:
     | /* empty */
