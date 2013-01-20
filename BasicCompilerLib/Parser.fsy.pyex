@@ -66,12 +66,6 @@ scopeResolvedName:
     | ident SRO scopeResolvedName
         { v \$1 + "::" + \$3 }
 
-identDotSeq:
-    | IDENT
-        { v \$1 }
-    | IDENT DOT identDotSeq
-        { v \$1 + "." + \$3 }
-
 visibility:
     | /* empty */
         { Private }
@@ -103,15 +97,8 @@ possibleType:
 ptype:
     | LPAR RPAR
         { Unit }
-    | identDotSeq
-        { match \$1 with
-            | "Int8"  -> Int 8
-            | "Int16" -> Int 16
-            | "Int32" -> Int 32
-            | "Int64" -> Int 64
-            | "Bool"  -> Bool
-            | _ -> UserType \$1
-        }
+    | scopeResolvedName
+        { UserType \$1 }
     | ptype ARROW ptype
         { PFunc (\$1, \$3) }
     | LPAR ptype RPAR
@@ -181,6 +168,7 @@ $for(binop in binops)\
     | expr3 $(binop.upper()) expr3
         { amaa (Binop ($(binop), \$1, \$3)) \$1 \$3 }
 $endfor\
+    | DOT
     | IDENT LPAR argList RPAR  
         { ambb (Call (v \$1, \$3)) (p \$1) \$4 }
     | IDENT

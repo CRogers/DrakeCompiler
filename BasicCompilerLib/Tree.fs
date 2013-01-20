@@ -7,6 +7,9 @@ open System.Collections.Generic
 open System.Collections.ObjectModel
 open System
 
+let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
+    namespace_ + "::" + classInterfaceName + "." + String.Join(".", extraNames)
+
 type Op = 
     | Add | Sub | Mul | Div
     | BoolAnd | BoolOr | Not
@@ -38,101 +41,63 @@ type Pos(startPos:Position, endPos:Position) =
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
-type RefType = Local | Parameter
-
-type Ref(name:string, ptype:PType, reftype: RefType) =
-    member x.Name = name
-    member x.PType = ptype
-    member x.RefType = reftype
-    member val ValueRef = new ValueRef(nativeint 0xDEAD0000) with get, set
-    member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDEAD0000
-    override x.ToString() = sprintf "%s:%s%s" x.Name (fmt x.PType) (if x.IsUninitialised then ":Uninit" else "")
-
 type Param(name: string, ptype: PType) =
     member x.Name = name
     member x.PType = ptype
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
+
+let paramsReturnTypeToPtype (params_:list<Param>) returnType =
+    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
+    PFunc (ptypeParams, returnType)
 
 type Visibility =
     | Private
     | Public
 
 type IVisibility =
-    abstract Visibility : Visibility
-
-type GlobalDeclStore() =
-    let dict = new Dictionary<string, Dictionary<string, NamespaceDeclA>>()
-
-    member x.AddNamespaceDecl(ndeclA:NamespaceDeclA) =
-        let namespace_ = ndeclA.Namespace
-        if not <| dict.ContainsKey(namespace_) then
-            dict.[namespace_] <- new Dictionary<string, NamespaceDeclA>()
-        dict.[namespace_].Add(ndeclA.Name, ndeclA)
-
-    member x.GetNamespaceDecl(currentNamespace, usings:list<string>, possiblyQualifiedName:string) = 
-        let split = possiblyQualifiedName.Split([|"::"|], StringSplitOptions.None)
-        let declName = Seq.last <| split
-
-        // Case 1: The Namespace::Is::Fuly::Qualified
-        if split.Length = 0 then
-            let namespaceSeq = Seq.take (split.Length-1) split
-            let namespace_ = String.Join("::", namespaceSeq)
-            dict.[namespace_].[declName]
-        // Case 2: Not qualified
-        else
-            let tryGet namespace_ =
-                if dict.[currentNamespace].ContainsKey(declName) then
-                    Some <| dict.[currentNamespace].[declName]
-                else
-                    None
-            // TODO: Error on multiple possibilities found
-            // Check current namespace first
-            match tryGet currentNamespace with
-                | Some decl -> decl
-                | None ->
-                    // Check using namespaces in order
-                    let possibles = Seq.map tryGet usings
-                    let numPossibles = Seq.sumBy (fun x -> if x = None then 0 else 1) possibles
-                    if numPossibles = 0 then
-                        failwithf "Cannot find any decl of name %s" possiblyQualifiedName
-                    else if numPossibles > 1 then
-                        failwithf "Multiple possible decls found for %s" possiblyQualifiedName
-                    else
-                        Option.get <| Seq.find Option.isSome possibles
-                        
+    abstract Visibility : Visibility                    
         
 
+type Ref =
+    | LocalRef of string * PType
+    | ClassRef of string * NamespaceDeclA
+    | InterfaceRef of string * NamespaceDeclA
 
-        
+and RefA(name: string, ref: Ref) =
+    member x.Name = name
+    member x.Ref = ref
+    member val ValueRef = new ValueRef(nativeint 0xDED) with get, set
+    member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDED
+
+    member x.QualifiedName = match ref with
+        | LocalRef (qn, _)     -> qn
+        | ClassRef (qn, _)     -> qn
+        | InterfaceRef (qn, _) -> qn
+
+    override x.ToString() = 
+        match ref with
+            | LocalRef (_, ptype) -> fmt ptype
+            | ClassRef _          -> "Class"
+            | InterfaceRef _      -> "Namespace" 
+        |> sprintf "%s:%s" x.QualifiedName
+
 
 and [<AbstractClass>] Annot(pos:Pos) =
-    let mutable refs:Map<string,Ref> = Map.empty;
-    let filterRefs refType =
-        Map.filter (fun k (v:Ref) -> v.RefType = refType) refs
-        |> Map.toSeq |> Seq.map (fun (k,v) -> v)
+    let mutable refs:Map<string,RefA> = Map.empty;
 
     member x.Refs = refs
-    member x.AddRef(ref:Ref) = refs <- refs.Add(ref.Name, ref)
+    member x.AddRef(ref:RefA) = refs <- refs.Add(ref.Name, ref)
     member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
+    member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
     member x.GetRef(name) = Map.find name refs
-    member x.LocalRefs with get () = filterRefs Local
-    member x.ParamRefs with get () = filterRefs Parameter
-
-    member val GlobalDecls:GlobalDeclStore = GlobalDeclStore() with get, set
 
     member val LocalVars:list<Ref> = [] with get, set
 
     member x.Pos = pos
-    member val PType = Undef with get, set
     abstract member ItemObj : obj
     member x.ItemAs<'a>():'a = downcast x.ItemObj
 
-    member val UsingContext:list<string> = [] with get, set
-    member val Namespace = "" with get, set
-
-    override x.ToString() = fmt x.ItemObj + match x.PType with
-        | Undef -> ""
-        | _ -> ":" + fmt x.PType
+    override x.ToString() = fmt x.ItemObj
         (*":" + x.Pos.ToString() +
         ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
         
@@ -156,6 +121,12 @@ and ExprA(item:Expr, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = item :> obj
+
+    member val PType = Undef with get, set
+
+    override x.ToString() = base.ToString() + match x.PType with
+        | Undef -> ""
+        | _ -> ":" + fmt x.PType
 
 
 and ClassDecl =
@@ -206,16 +177,6 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         | Class (name, _, _) -> name
         | Interface (name, _, _) -> name
 
-    member x.QualifiedName = x.Namespace + "::" + x.Name
-
-    member x.GetClassDecl(name) = match x.Item with
-        | Class (_, _, cdeclAs) -> List.tryFind (fun (c:ClassDeclA) -> c.Name = name) cdeclAs
-
-    member x.GetClassDecl(name, vis) = Option.exists (fun (cd:ClassDeclA) -> cd.Visibility = vis) <| x.GetClassDecl(name)
-
-    member x.GetInterfaceDecl(name) = match x.Item with
-        | Interface (_, _, ideclAs) -> List.tryFind (fun (i:InterfaceDeclA) -> i.Name = name) ideclAs
-
 
 type TopDecl =
     | Using of string
@@ -225,6 +186,9 @@ type TopDeclA(item:TopDecl, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = upcast item
+    member x.IsNamespace = match item with
+        | Namespace (name, decls) -> true
+        | _ -> false
 
 
 type CompilationUnit = list<TopDeclA>
