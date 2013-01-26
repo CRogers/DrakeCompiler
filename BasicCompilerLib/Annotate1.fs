@@ -21,13 +21,13 @@ let getStdRefsClass namespace_ cname (cA:ClassDeclA) =
     let qname = qualifiedName namespace_ cname [cA.Name]
 
     match cA.Item with
-        | ClassVar (name, vis, ptype, eA) ->
+        | ClassVar (name, vis, isStatic, ptype, eA) ->
             cA.PType <- ptype
-            (vis, RefA(name, ClassVarRef (qname, cA)))
+            (vis, RefA(name, ClassLevelRef (qname, cA)))
         | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
             let ptype = paramsReturnTypeToPtype params_ returnType
             cA.PType <- ptype
-            (vis, RefA(name, ClassProcRef (qname, cA)))
+            (vis, RefA(name, ClassLevelRef (qname, cA)))
 
 
 let getStdRefsInterface namespace_ iname (iA:InterfaceDeclA) =
@@ -36,7 +36,7 @@ let getStdRefsInterface namespace_ iname (iA:InterfaceDeclA) =
             let qname = qualifiedName namespace_ iname [name]
             let ptype = paramsReturnTypeToPtype params_ returnType
             iA.PType <- ptype
-            RefA(name, InterfaceProcRef (qname, iA))
+            RefA(name, InterfaceLevelRef (qname, iA))
 
 
 let getStdRefsNamespace namespace_ (nA:NamespaceDeclA) =
@@ -55,12 +55,12 @@ let getStdRefsNamespace namespace_ (nA:NamespaceDeclA) =
                 // Add private refs only to those below class decl
                 (fun () -> Seq.iter (iterAST foldASTClassDecl (fun annot -> annot.AddRefs(privateRefs))) cdeclAs)
             ]
-            (ClassRef (qname, nA), laterActions)
+            (NamespaceLevelRef (qname, nA), laterActions)
         | Interface (name, vis, ideclAs) ->
             let irefs = Seq.map (getStdRefsInterface namespace_ name) ideclAs
             // Copy down all refs
             let laterActions = [fun () -> iterAST foldASTNamespaceDecl (fun annot -> annot.AddRefs(irefs)) nA]
-            (InterfaceRef (qname, nA), laterActions)
+            (NamespaceLevelRef (qname, nA), laterActions)
 
     let globalRef = RefA(qname, cr)
     let localRef = RefA(nA.Name, cr)
@@ -77,7 +77,7 @@ let getStdRefsTop (namespaceA:TopDeclA) =
             let laterActions = concatMap thd3 globalLocalRefs
 
             // Add each of the local refs to the namespace and each local ref to the decls in the namespace
-            let laterActions = Seq.append laterActions [fun () -> iterAST foldASTTopDecl (fun annot -> annot.AddRefs(localRefs)) namespaceA]
+            let laterActions = Seq.append [fun () -> iterAST foldASTTopDecl (fun annot -> annot.AddRefs(localRefs)) namespaceA] laterActions
 
             (globalRefs, laterActions)
     

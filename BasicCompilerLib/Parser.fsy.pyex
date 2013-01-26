@@ -31,6 +31,7 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 %token<Pos>            IF THEN ELSE WHILE DO VAR
 %token<Pos>            NAMESPACE CLASS INTERFACE
 %token<Pos>            PRIVATE PUBLIC
+%token<Pos>            STATIC CONSTRUCTOR
 %token<Pos>            ARROW USING DOT SRO
 
 %type<Program> program
@@ -61,9 +62,9 @@ topLevelDecls:
         { ambb (Namespace (\$2, \$4)) \$1 \$3 :: \$6 }
 
 scopeResolvedName:
-    | ident
+    | IDENT
         { v \$1 }
-    | ident SRO scopeResolvedName
+    | IDENT SRO scopeResolvedName
         { v \$1 + "::" + \$3 }
 
 visibility:
@@ -119,8 +120,8 @@ ctor:
 classDecls:
     | /* empty */
         { [] }
-    | visibility VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
-        { ambb (ClassVar (v \$3, \$1, \$5, \$7)) \$2 \$8 :: \$9 }
+    | visibility static VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
+        { ambb (ClassVar (v \$4, \$1, \$2, \$6, \$8)) \$3 \$9 :: \$10 }
     | visibility static ctor IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
         { amba (ClassProc (v \$4, \$1, \$2 || \$3, \$3 \$6, \$8, \$10)) (p \$4) \$10 :: \$11 }
 
@@ -180,14 +181,18 @@ $for(binop in binops)\
     | expr3 $(binop.upper()) expr3
         { amaa (Binop ($(binop), \$1, \$3)) \$1 \$3 }
 $endfor\
-    | DOT
-    | IDENT LPAR argList RPAR  
+    | expr4 LPAR argList RPAR  
         { ambb (Call (v \$1, \$3)) (p \$1) \$4 }
     | IDENT
         { a (Var (v \$1)) (p \$1) }
+    | expr4
+        { \$1 }
+
+expr4:
+    | expr4 DOT IDENT
+        { amab (Dot (\$1, \$3)) \$1 \$3 }
     | LPAR expr3 RPAR
         { \$2 }
-
 
 argList:
     | /* empty */

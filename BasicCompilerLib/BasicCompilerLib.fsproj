@@ -64,6 +64,7 @@
     <None Include="Builtins.fs.pyex" />
     <Compile Include="Check.fs" />
     <Compile Include="Annotate1.fs" />
+    <Compile Include="Annotate2.fs" />
     <Compile Include="Annotate.fs" />
     <Compile Include="Compiler.fs" />
     <None Include="App.config" />

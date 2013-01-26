@@ -19,52 +19,39 @@ type PType =
     | Undef
     | UserType of string
     | PFunc of (*arg types*) list<PType> * (*return type*) PType
+    | RefType of Ref
     with
     override x.ToString() = fmt x
 
-type CommonPtype =
+and CommonPtype =
     | Unit
     | Int of int
     | Bool
     | String
 
-let cpPrefix x = "System::" + x 
-
-let commonPtype x = UserType (cpPrefix <| match x with
-    | Unit   -> "Unit"
-    | Int i  -> "Int" + i.ToString()
-    | Bool   -> "Bool"
-    | String -> "String")
-
-type Pos(startPos:Position, endPos:Position) =
+and Pos(startPos:Position, endPos:Position) =
     member x.StartPos = startPos
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
-type Param(name: string, ptype: PType) =
+and Param(name: string, ptype: PType) =
     member x.Name = name
     member x.PType = ptype
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
-let paramsReturnTypeToPtype (params_:list<Param>) returnType =
-    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
-    PFunc (ptypeParams, returnType)
-
-type Visibility =
+and Visibility =
     | Private
     | Public
 
-type IVisibility =
+and IVisibility =
     abstract Visibility : Visibility                    
         
 
-type Ref =
+and Ref =
     | VarRef of string * PType
-    | ClassVarRef of string * ClassDeclA
-    | ClassProcRef of string * ClassDeclA
-    | InterfaceProcRef of string * InterfaceDeclA
-    | ClassRef of string * NamespaceDeclA
-    | InterfaceRef of string * NamespaceDeclA
+    | ClassLevelRef of string * ClassDeclA
+    | InterfaceLevelRef of string * InterfaceDeclA
+    | NamespaceLevelRef of string * NamespaceDeclA
 
 and RefA(name: string, ref: Ref) =
     member x.Name = name
@@ -73,21 +60,31 @@ and RefA(name: string, ref: Ref) =
     member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDED
 
     member x.QualifiedName = match ref with
-        | VarRef (qn, _)           -> qn
-        | ClassVarRef (qn, _)      -> qn
-        | ClassProcRef (qn, _)     -> qn
-        | InterfaceProcRef (qn, _) -> qn
-        | ClassRef (qn, _)         -> qn
-        | InterfaceRef (qn, _)     -> qn
+        | VarRef (qn, _) -> qn
+        | ClassLevelRef (qn, _) -> qn
+        | InterfaceLevelRef (qn, _) -> qn
+        | NamespaceLevelRef (qn, _) -> qn
+
+    member x.PType = match ref with
+        | VarRef (_, ptype) -> ptype
+        | _ -> RefType ref
+
+    member x.FunctionPType = 
+        let isPFunc ptype = match ptype with
+            | PFunc _ -> Some ptype
+            | _ -> None
+        match ref with
+            | VarRef (_, ptype) -> isPFunc ptype
+            | ClassLevelRef (_, cA) -> isPFunc cA.PType
+            | InterfaceLevelRef (_, iA) -> Some iA.PType
+            | _ -> None
 
     override x.ToString() = 
         match ref with
             | VarRef (_, ptype)   -> fmt ptype
-            | ClassVarRef _       -> "ClassVar"
-            | ClassProcRef _      -> "ClassProc"
-            | InterfaceProcRef _  -> "InterfaceProc"
-            | ClassRef _          -> "Class"
-            | InterfaceRef _      -> "Namespace" 
+            | ClassLevelRef _     -> "ClassRef"
+            | InterfaceLevelRef _ -> "InterfaceRef"
+            | NamespaceLevelRef _ -> "NamespaceRef" 
         |> sprintf "%s:%s" x.QualifiedName
 
 
@@ -100,7 +97,9 @@ and [<AbstractClass>] Annot(pos:Pos) =
     member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
     member x.GetRef(name) = Map.find name refs
 
-    member val LocalVars:list<Ref> = [] with get, set
+    member val LocalVars:list<RefA> = [] with get, set
+    member x.AddLocalVar(ref) = x.LocalVars <- ref :: x.LocalVars
+    member x.AddLocalVars(refs) = x.LocalVars <- refs @ x.LocalVars
 
     member x.Pos = pos
     abstract member ItemObj : obj
@@ -117,7 +116,8 @@ and Expr =
     | ConstUnit
     | Var of string
     | Binop of Op * ExprA * ExprA
-    | Call of string * list<ExprA>
+    | Dot of ExprA * string
+    | Call of ExprA * list<ExprA>
     | Assign of string * ExprA
     | DeclVar of string * (*Assign*) ExprA
     | Print of ExprA
@@ -139,7 +139,7 @@ and ExprA(item:Expr, pos:Pos) =
 
 
 and ClassDecl =
-    | ClassVar of string * Visibility * PType * ExprA
+    | ClassVar of string * Visibility * (*static*) bool * PType * ExprA
     | ClassProc of (*name*) string * Visibility * (*static*) bool * (*ctor*) bool * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
     
 
@@ -151,12 +151,16 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val PType = Undef with get, set
 
     member x.Visibility = match x.Item with
-        | ClassVar (_, vis, _, _) -> vis
+        | ClassVar (_, vis, _, _, _) -> vis
         | ClassProc (_, vis, _, _, _, _, _) -> vis
 
     member x.Name = match x.Item with
-        | ClassVar (name, _, _, _) -> name
+        | ClassVar (name, _, _, _, _) -> name
         | ClassProc (name, _, _, _, _, _, _) -> name
+
+    member x.IsStatic = match x.Item with
+        | ClassVar (_, _, isStatic, _, _) -> isStatic
+        | ClassProc (_, _, isStatic, _, _, _, _) -> isStatic
 
 
 and InterfaceDecl =
@@ -217,29 +221,44 @@ type Environ(module_: ModuleRef, enclosingFunc: Ref) =
     member x.EnclosingFunc = enclosingFunc
 
 
+let cpPrefix x = "System::" + x 
+
+let commonPtype x = UserType (cpPrefix <| match x with
+    | Unit   -> "Unit"
+    | Int i  -> "Int" + i.ToString()
+    | Bool   -> "Bool"
+    | String -> "String")
+
+let paramsReturnTypeToPtype (params_:list<Param>) returnType =
+    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
+    PFunc (ptypeParams, returnType)
+
+
+
 let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (exprA:ExprA) =
     let fAST e = foldASTExpr branchFunc leafFunc e
-    let bf1 branch e = branchFunc branch <| [fAST e]
-    let bf branch es = branchFunc branch <| List.map fAST es
+    let bf1 e = branchFunc exprA <| [fAST e]
+    let bf es = branchFunc exprA <| List.map fAST es
     match exprA.Item with
         | ConstInt _ -> leafFunc exprA
         | ConstBool _ -> leafFunc exprA
         | ConstUnit -> leafFunc exprA
         | Var n -> leafFunc exprA
-        | Binop (op, l, r) -> bf exprA [l; r]
-        | Call (name, exprAs) -> bf exprA exprAs
-        | Assign (name, innerExprA) -> bf1 exprA innerExprA
-        | DeclVar (name, assignA) -> bf1 exprA assignA
-        | Print e -> bf1 exprA e
-        | Return e -> bf1 exprA e
-        | If (test, then_, else_) -> bf exprA [test; then_; else_]
-        | While (test, body) -> bf exprA [test; body]
-        | Seq (e1A, e2A) -> bf exprA [e1A; e2A]
+        | Binop (op, l, r) -> bf [l; r]
+        | Dot (eA, name) -> bf1 eA
+        | Call (feA, exprAs) -> bf <| feA :: exprAs
+        | Assign (name, innerExprA) -> bf1 innerExprA
+        | DeclVar (name, assignA) -> bf1 assignA
+        | Print e -> bf1 e
+        | Return e -> bf1 e
+        | If (test, then_, else_) -> bf [test; then_; else_]
+        | While (test, body) -> bf [test; body]
+        | Seq (e1A, e2A) -> bf [e1A; e2A]
 
 let foldASTClassDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (cdecl:ClassDeclA) =
     let fAST e = foldASTExpr branchFunc leafFunc e
     match cdecl.Item with
-        | ClassVar (_, _, _, exprA) -> branchFunc cdecl [fAST exprA]
+        | ClassVar (_, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
         | ClassProc (_, _, _, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
 
 let foldASTInterfaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (idecl:InterfaceDeclA) =
