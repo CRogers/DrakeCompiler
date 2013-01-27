@@ -18,6 +18,7 @@ type Op =
 type PType = 
     | Undef
     | UserType of string
+    | StaticType of string
     | PFunc of (*arg types*) list<PType> * (*return type*) PType
     | RefType of Ref
     with
@@ -39,65 +40,33 @@ and Param(name: string, ptype: PType) =
     member x.PType = ptype
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
+and IsStatic =
+    | Static
+    | NotStatic
+
+and IsCtor =
+    | Ctor
+    | NotCtor
+
 and Visibility =
     | Private
     | Public
 
 and IVisibility =
-    abstract Visibility : Visibility                    
-        
+    abstract Visibility : Visibility
 
-and Ref =
-    | VarRef of string * PType
-    | ClassLevelRef of string * ClassDeclA
-    | InterfaceLevelRef of string * InterfaceDeclA
-    | NamespaceLevelRef of string * NamespaceDeclA
-
-and RefA(name: string, ref: Ref) =
+and Ref(name: string, ptype:PType) =
     member x.Name = name
-    member x.Ref = ref
+    member x.PType = ptype
     member val ValueRef = new ValueRef(nativeint 0xDED) with get, set
     member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDED
 
-    member x.QualifiedName = match ref with
-        | VarRef (qn, _) -> qn
-        | ClassLevelRef (qn, _) -> qn
-        | InterfaceLevelRef (qn, _) -> qn
-        | NamespaceLevelRef (qn, _) -> qn
-
-    member x.PType = match ref with
-        | VarRef (_, ptype) -> ptype
-        | _ -> RefType ref
-
-    member x.FunctionPType = 
-        let isPFunc ptype = match ptype with
-            | PFunc _ -> Some ptype
-            | _ -> None
-        match ref with
-            | VarRef (_, ptype) -> isPFunc ptype
-            | ClassLevelRef (_, cA) -> isPFunc cA.PType
-            | InterfaceLevelRef (_, iA) -> Some iA.PType
-            | _ -> None
-
-    override x.ToString() = 
-        match ref with
-            | VarRef (_, ptype)   -> fmt ptype
-            | ClassLevelRef _     -> "ClassRef"
-            | InterfaceLevelRef _ -> "InterfaceRef"
-            | NamespaceLevelRef _ -> "NamespaceRef" 
-        |> sprintf "%s:%s" x.QualifiedName
-
+and CIRef = 
+    | ClassRef of string * ClassDeclA
+    | InterfaceRef of string * InterfaceDeclA 
 
 and [<AbstractClass>] Annot(pos:Pos) =
-    let mutable refs:Map<string,RefA> = Map.empty;
-
-    member x.Refs = refs
-    member x.AddRef(ref:RefA) = refs <- refs.Add(ref.Name, ref)
-    member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
-    member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
-    member x.GetRef(name) = Map.find name refs
-
-    member val LocalVars:list<RefA> = [] with get, set
+    member val LocalVars:list<Ref> = [] with get, set
     member x.AddLocalVar(ref) = x.LocalVars <- ref :: x.LocalVars
     member x.AddLocalVars(refs) = x.LocalVars <- refs @ x.LocalVars
 
@@ -105,10 +74,24 @@ and [<AbstractClass>] Annot(pos:Pos) =
     abstract member ItemObj : obj
     member x.ItemAs<'a>():'a = downcast x.ItemObj
 
+    member val QName = "" with get, set
+    member val Usings:list<string> = [] with get, set
+    member val Namespace = "" with get, set
+
     override x.ToString() = fmt x.ItemObj
         (*":" + x.Pos.ToString() +
         ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
-        
+ 
+and [<AbstractClass>] AnnotRefs<'a>(pos:Pos) = 
+    inherit Annot(pos)
+    let mutable refs:Map<string,'a> = Map.empty;
+
+    member x.Refs = refs
+    member x.AddRef(name, ref:'a) = refs <- refs.Add(name, ref)
+    member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
+    member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
+    member x.GetRef(name) = Map.tryFind name refs
+
 
 and Expr =
     | ConstInt of (*size*) int * (*value*) int64
@@ -127,7 +110,8 @@ and Expr =
     | Seq of ExprA * ExprA
 
 and ExprA(item:Expr, pos:Pos) =
-    inherit Annot(pos)
+    inherit AnnotRefs<Ref>(pos)    
+
     member x.Item = item
     override x.ItemObj = item :> obj
 
@@ -139,8 +123,8 @@ and ExprA(item:Expr, pos:Pos) =
 
 
 and ClassDecl =
-    | ClassVar of string * Visibility * (*static*) bool * PType * ExprA
-    | ClassProc of (*name*) string * Visibility * (*static*) bool * (*ctor*) bool * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
+    | ClassVar of string * Visibility * (*static*) IsStatic * PType * ExprA
+    | ClassProc of (*name*) string * Visibility * (*static*) IsStatic * (*ctor*) IsCtor * (*params*) list<Param> * (*returnType*) PType * (*body*) ExprA
     
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
@@ -181,8 +165,8 @@ and NamespaceDecl =
     | Class of string * Visibility * list<ClassDeclA>
     | Interface of string * Visibility * list<InterfaceDeclA>
 
-and NamespaceDeclA(item:NamespaceDecl, pos:Pos) = 
-    inherit Annot(pos)
+and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
+    inherit AnnotRefs<CIRef>(pos)
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
 
@@ -233,6 +217,22 @@ let paramsReturnTypeToPtype (params_:list<Param>) returnType =
     let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
     PFunc (ptypeParams, returnType)
 
+
+let getGlobal globals namespace_ (usings:seq<string>) name =
+    match Map.tryFind name globals with
+        | Some nA -> Some nA
+        | None ->
+            let namespaceLocal = namespace_ + "::" + name
+            match Map.tryFind namespaceLocal globals with
+                | Some nA -> Some nA
+                | None ->
+                    // Cycle through usings
+                    let us = Seq.map (fun using ->
+                        Map.tryFind (using + "::" + name) globals) usings
+                    match Seq.tryFind Option.isSome us with
+                        | Some snA -> snA
+                        | None -> None
+    
 
 
 let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (exprA:ExprA) =

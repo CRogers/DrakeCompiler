@@ -107,15 +107,15 @@ ptype:
 
 static:
     | /* empty */
-        { false }
+        { NotStatic }
     | STATIC
-        { true }
+        { Static }
 
 ctor:
     | /* empty */
-        { false }
+        { Ctor }
     | CONSTRUCTOR
-        { true }
+        { NotCtor }
 
 classDecls:
     | /* empty */
@@ -123,7 +123,10 @@ classDecls:
     | visibility static VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { ambb (ClassVar (v \$4, \$1, \$2, \$6, \$8)) \$3 \$9 :: \$10 }
     | visibility static ctor IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
-        { amba (ClassProc (v \$4, \$1, \$2 || \$3, \$3 \$6, \$8, \$10)) (p \$4) \$10 :: \$11 }
+        { 
+            let isStatic = if  (\$3 = Static) || (\$2 = Ctor) then Static else NotStatic
+            amba (ClassProc (v \$4, \$1, isStatic, \$3 \$6, \$8, \$10)) (p \$4) \$10 :: \$11
+        }
 
 possibleReturnType:
     | /* empty */
