@@ -16,10 +16,10 @@ $endfor\
 $endfor\
 $for(size in intsizes)\
 $for(x in numcomp)\
-    | ($(x), UserType "System::Int$(size)", UserType "System::Int$(size)") -> Some "System::Bool"
+    | ($(x), UserType "System::Int$(size)", UserType "System::Int$(size)") -> Some <| UserType "System::Bool"
 $endfor\
 $endfor\
 $for(x in boolean)\
-    | ($(x), Bool, Bool) -> Some Bool
+    | ($(x), UserType "System::Bool", UserType "System::Bool") -> Some <| UserType "System::Bool"
 $endfor\
     | _ -> None

@@ -2,21 +2,40 @@
 
 open Tree
 
-let sp (itemA:Annot<_>) = itemA.Pos.StartPos
-let ep (itemA:Annot<_>) = itemA.Pos.EndPos
+let sp (itemA:Annot) = itemA.Pos.StartPos
+let ep (itemA:Annot) = itemA.Pos.EndPos
 
 let v = snd<Pos,_>
 let p = fst<Pos,_>
 let markers (lpos:Pos) (rpos:Pos) = Pos(lpos.StartPos, rpos.EndPos)
 
-(*annotate*)
-let a item pos = Annot(item, pos)
 (*annotate using markers*)
-let ambb item lpos rpos = Annot(item, markers lpos rpos)
-let amba item lpos (rightA:Annot<_>) = ambb item lpos rightA.Pos
-let amab item (leftA:Annot<_>) rpos = ambb item leftA.Pos rpos
-(*annotate using markers that are annotated*)
-let amaa item (leftA:Annot<_>) (rightA:Annot<_>) = ambb item leftA.Pos rightA.Pos
+let tbb item lpos rpos = TopDeclA(item, markers lpos rpos)
+let tba item lpos (rightA:Annot)          = tbb item lpos rightA.Pos
+let tab item (leftA:Annot) rpos           = tbb item leftA.Pos rpos
+let taa item (leftA:Annot) (rightA:Annot) = tbb item leftA.Pos rightA.Pos
+
+let nbb item lpos rpos = NamespaceDeclA(item, markers lpos rpos)
+let nba item lpos (rightA:Annot)          = nbb item lpos rightA.Pos
+let nab item (leftA:Annot) rpos           = nbb item leftA.Pos rpos
+let naa item (leftA:Annot) (rightA:Annot) = nbb item leftA.Pos rightA.Pos
+
+let cbb item lpos rpos = ClassDeclA(item, markers lpos rpos)
+let cba item lpos (rightA:Annot)          = cbb item lpos rightA.Pos
+let cab item (leftA:Annot) rpos           = cbb item leftA.Pos rpos
+let caa item (leftA:Annot) (rightA:Annot) = cbb item leftA.Pos rightA.Pos
+
+let ibb item lpos rpos = InterfaceDeclA(item, markers lpos rpos)
+let iba item lpos (rightA:Annot)          = ibb item lpos rightA.Pos
+let iab item (leftA:Annot) rpos           = ibb item leftA.Pos rpos
+let iaa item (leftA:Annot) (rightA:Annot) = ibb item leftA.Pos rightA.Pos
+
+let ebb item lpos rpos = ExprA(item, markers lpos rpos)
+let eba item lpos (rightA:Annot)          = ebb item lpos rightA.Pos
+let eab item (leftA:Annot) rpos           = ebb item leftA.Pos rpos
+let eaa item (leftA:Annot) (rightA:Annot) = ebb item leftA.Pos rightA.Pos
+
+let ea item pos = ExprA(item, pos)
 
 %}
 
@@ -34,7 +53,7 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 %token<Pos>            STATIC CONSTRUCTOR
 %token<Pos>            ARROW USING DOT SRO
 
-%type<Program> program
+%type<CompilationUnit> program
 %start program
 
 %left SEMI
@@ -57,9 +76,9 @@ topLevelDecls:
     | /* empty */
         { [] }
     | USING scopeResolvedName SEMI topLevelDecls
-        { ambb (Using \$2) \$1 \$3 :: \$4 }
+        { tbb (Using \$2) \$1 \$3 :: \$4 }
     | NAMESPACE scopeResolvedName LCURLY namespaceDecls RCURLY topLevelDecls
-        { ambb (Namespace (\$2, \$4)) \$1 \$3 :: \$6 }
+        { tbb (Namespace (\$2, \$4)) \$1 \$3 :: \$6 }
 
 scopeResolvedName:
     | IDENT
@@ -79,15 +98,15 @@ namespaceDecls:
     | /* empty */
         { [] }
     | visibility CLASS IDENT LCURLY classDecls RCURLY namespaceDecls
-        { ambb (Class (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
+        { nbb (Class (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
     | visibility INTERFACE IDENT LCURLY interfaceDecls RCURLY namespaceDecls
-        { ambb (Interface (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
+        { nbb (Interface (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
 
 interfaceDecls:
     | /* empty */
         { [] }
     | IDENT LPAR params RPAR possibleReturnType SEMI interfaceDecls
-        { ambb (InterfaceProc (v \$1, \$3, \$5)) (p \$1) \$6 :: \$7 }
+        { ibb (InterfaceProc (v \$1, \$3, \$5)) (p \$1) \$6 :: \$7 }
 
 possibleType:
     | /* empty */
@@ -96,16 +115,18 @@ possibleType:
         { \$1 }
 
 ptype:
-    | LPAR RPAR
-        { Unit }
     | scopeResolvedName
         { UserType \$1 }
-    | ptype ARROW ptype
-        { PFunc (\$1, \$3) }
-    | LPAR ptype RPAR
-        { \$2 }
+    | LPAR ptypeList RPAR ARROW ptype
+        { PFunc (\$2, \$5) }
 
-static:
+ptypeList:
+    | /* empty */
+        { [] }
+    | ptype COMMA ptypeList
+        { \$1 :: \$3 }
+
+static_:
     | /* empty */
         { NotStatic }
     | STATIC
@@ -120,17 +141,17 @@ ctor:
 classDecls:
     | /* empty */
         { [] }
-    | visibility static VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
-        { ambb (ClassVar (v \$4, \$1, \$2, \$6, \$8)) \$3 \$9 :: \$10 }
-    | visibility static ctor IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
+    | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
+        { cbb (ClassVar (v \$4, \$1, \$2, \$6, \$8)) \$3 \$9 :: \$10 }
+    | visibility static_ ctor IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
         { 
-            let isStatic = if  (\$3 = Static) || (\$2 = Ctor) then Static else NotStatic
-            amba (ClassProc (v \$4, \$1, isStatic, \$3 \$6, \$8, \$10)) (p \$4) \$10 :: \$11
+            let isStatic = if  (\$2 = Static) || (\$3 = Ctor) then Static else NotStatic
+            cba (ClassProc (v \$4, \$1, isStatic, \$3, \$6, \$8, \$10)) (p \$4) \$10 :: \$11
         }
 
 possibleReturnType:
     | /* empty */
-        { Unit }
+        { commonPtype Unit }
     | ptype
         { \$1 }
 
@@ -145,21 +166,21 @@ expr0:
     | expr1
         { \$1 }
     | expr1 expr0
-        { amaa (Seq (\$1, \$2)) \$1 \$2 }
+        { eaa (Seq (\$1, \$2)) \$1 \$2 }
 
 expr1:
     | IDENT EQUALS expr3 SEMI
-        { amba (Assign (v \$1, \$3)) (p \$1) \$3 }
+        { eba (Assign (v \$1, \$3)) (p \$1) \$3 }
     | PRINT expr3 SEMI
-        { amba (Print \$2) \$1 \$2 }
+        { eba (Print \$2) \$1 \$2 }
     | VAR IDENT EQUALS expr3 SEMI
-        { amba (DeclVar (v \$2, amba (Assign (v \$2, \$4)) (p \$2) \$4)) \$1 \$4 }
+        { eba (DeclVar (v \$2, eba (Assign (v \$2, \$4)) (p \$2) \$4)) \$1 \$4 }
     | RETURN expr3 SEMI
-        { amba (Return \$2) \$1 \$2 }
-    | IF LPAR expr3 RPAR expr2 ELSE expr2 SEMI
-        { amba (If (\$3, \$5, \$7)) \$1 \$5 }
+        { eba (Return \$2) \$1 \$2 }
+    | IF LPAR expr3 RPAR expr2 ELSE expr2
+        { eba (If (\$3, \$5, \$7)) \$1 \$5 }
     | WHILE LPAR expr3 RPAR expr2
-        { ambb (While (\$3, \$5)) \$1 \$4 }
+        { ebb (While (\$3, \$5)) \$1 \$4 }
     | expr2 
         { \$1 }
 
@@ -169,31 +190,35 @@ expr2:
     | LCURLY expr0 RCURLY
         { \$2 }
 
-expr3:
-    | LPAR RPAR
-        { ambb ConstUnit \$1 \$2 }
-$for(x in [8,16,32,64])\
-    | INT$(x)
-        { a (ConstInt ($(x), v \$1)) (p \$1) }
-$endfor\
-    | TRUE
-        { a (ConstBool true) \$1 }
-    | FALSE
-        { a (ConstBool false) \$1 }    
+expr3:  
 $for(binop in binops)\
     | expr3 $(binop.upper()) expr3
-        { amaa (Binop ($(binop), \$1, \$3)) \$1 \$3 }
+        { eaa (Binop ($(binop), \$1, \$3)) \$1 \$3 }
 $endfor\
     | expr4 LPAR argList RPAR  
-        { ambb (Call (v \$1, \$3)) (p \$1) \$4 }
-    | IDENT
-        { a (Var (v \$1)) (p \$1) }
+        { eab (Call (\$1, \$3)) \$1 \$4 }
     | expr4
         { \$1 }
 
 expr4:
+    | LPAR RPAR
+        { ebb ConstUnit \$1 \$2 }
+    | IDENT
+        { ea (Var (v \$1)) (p \$1) }
+    | TRUE
+        { ea (ConstBool true) \$1 }
+    | FALSE
+        { ea (ConstBool false) \$1 }
+$for(x in [8,16,32,64])\
+    | INT$(x)
+        { ea (ConstInt ($(x), v \$1)) (p \$1) }
+$endfor\
+    | expr5
+        { \$1 }
+
+expr5:
     | expr4 DOT IDENT
-        { amab (Dot (\$1, \$3)) \$1 \$3 }
+        { eab (Dot (\$1, v \$3)) \$1 (p \$3) }
     | LPAR expr3 RPAR
         { \$2 }
 
