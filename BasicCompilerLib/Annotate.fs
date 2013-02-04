@@ -19,11 +19,12 @@ let flatternAST (program:Program) =
     concatMap flatternCU program
 
 let annotate (program:Program) =
-    let globals = getStdRefs program
+    let globals = getGlobalRefs program
 
     // Flattern tree to class/interface level
     let flatProg = flatternAST program
 
+    annotateCIRefs globals flatProg
     annotateTypes globals flatProg
 
     flatProg

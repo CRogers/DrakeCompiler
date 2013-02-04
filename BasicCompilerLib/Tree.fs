@@ -7,11 +7,6 @@ open System.Collections.Generic
 open System.Collections.ObjectModel
 open System
 
-let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
-    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
-        then ""
-        else "." + String.Join(".", extraNames)
-
 type Op = 
     | Add | Sub | Mul | Div
     | BoolAnd | BoolOr | Not
@@ -39,7 +34,7 @@ and Pos(startPos:Position, endPos:Position) =
 
 and Param(name: string, ptype: PType) =
     member x.Name = name
-    member x.PType = ptype
+    member val PType = ptype with get, set
     override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
 
 and IsStatic =
@@ -205,6 +200,18 @@ type Func(name: string, func: ValueRef, params: Map<string, ValueRef>) =
 type Environ(module_: ModuleRef, enclosingFunc: Ref) =
     member x.Module = module_
     member x.EnclosingFunc = enclosingFunc
+
+
+
+
+
+
+let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
+    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
+        then ""
+        else "." + String.Join(".", extraNames)
+
+let isQualifiedName (name:string) = name.Contains("::")
 
 
 let cpPrefix x = "System::" + x 

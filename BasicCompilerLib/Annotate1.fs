@@ -13,66 +13,100 @@ let concatMap f items =
     Seq.map f items
     |> Seq.concat
 
-let getStdRefsClass namespace_ cname (cA:ClassDeclA) =
-    let qname = qualifiedName namespace_ cname [cA.Name]
+let annotateCIRefs (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDeclA>) =
 
-    match cA.Item with
-        | ClassVar (name, vis, isStatic, ptype, eA) ->
-            cA.PType <- ptype
-            cA.QName <- qname
-            (name, ClassRef (name, cA))
-        | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
-            cA.PType <- paramsReturnTypeToPtype params_ returnType
-            cA.QName <- qname
-            (name, ClassRef (name, cA))
-
-
-let getStdRefsInterface namespace_ iname (iA:InterfaceDeclA) =
-    match iA.Item with
-        | InterfaceProc (name, params_, returnType) ->
-            iA.PType <- paramsReturnTypeToPtype params_ returnType
-            iA.QName <- qualifiedName namespace_ iname [name]
-            (name, InterfaceRef (name, iA))
+    let getQName namespace_ usings name =
+        // See if it is a qualified name first
+        if isQualifiedName name then
+            // Look up in globals
+            Map.findKey (fun key value -> key = name) globals
+        else
+            // Look in local place first then usings
+            let placesToLook = Seq.append [namespace_] usings
+            match Seq.tryPick (fun nspace -> Map.tryFindKey (fun key value -> key = qualifiedName nspace name []) globals) placesToLook with
+                | Some qname -> qname
+                | None -> Map.findKey (fun key value -> key = name) globals                    
 
 
-let getStdRefsNamespace namespace_ (nA:NamespaceDeclA) =
-    let qname = qualifiedName namespace_ nA.Name []
+    let rec newPType nspace usings ptype = match ptype with
+            | Undef -> Undef
+            | UserType name -> UserType <| getQName nspace usings name
+            | PFunc (args, ret) -> PFunc (List.map (newPType nspace usings) args, newPType nspace usings ret)
 
-    // We need to go deeper - add CIRefs for classes/interfaces
-    let refs = match nA.Item with
-        | Class (name, vis, cAs) ->
-            Seq.map (getStdRefsClass namespace_ name) cAs
-        | Interface (name, vis, iAs) ->
-            Seq.map (getStdRefsInterface namespace_ name) iAs
-
-    nA.AddRefs(refs)
-    (qname, nA)
+    let expandParamsQName nspace usings (params_:seq<Param>) =
+        Seq.iter (fun (p:Param) -> p.PType <- newPType nspace usings p.PType) params_
 
 
-let getStdRefsTop (tA:TopDeclA) =
-    match tA.Item with
-        | Namespace (name, nAs) ->
-            // Add namespace to all subthings
-            iterAST foldASTTopDecl (fun (annot:Annot) -> annot.Namespace <- name) tA
-            Seq.map (getStdRefsNamespace name) nAs
+    let annotateCIRefsClass cname (cA:ClassDeclA) =
+        let qname = qualifiedName cA.Namespace cname [cA.Name]
+
+        match cA.Item with
+            | ClassVar (name, vis, isStatic, ptype, eA) ->
+                cA.PType <- newPType cA.Namespace cA.Usings ptype
+                cA.QName <- qname
+                (name, ClassRef (name, cA))
+            | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
+                expandParamsQName cA.Namespace cA.Usings params_
+                cA.PType <- paramsReturnTypeToPtype params_ returnType
+                cA.QName <- qname
+                (name, ClassRef (name, cA))
+
+
+    let annotateCIRefsInterface iname (iA:InterfaceDeclA) =
+        match iA.Item with
+            | InterfaceProc (name, params_, returnType) ->
+                expandParamsQName iA.Namespace iA.Usings params_
+                iA.PType <- paramsReturnTypeToPtype params_ returnType
+                iA.QName <- qualifiedName iA.Namespace iname [name]
+                (name, InterfaceRef (name, iA))
+
+
+    let annotateCIRefsNamespace (nA:NamespaceDeclA) =
+        // We need to go deeper - add CIRefs for classes/interfaces
+        let refs = match nA.Item with
+            | Class (name, vis, cAs) ->
+                Seq.map (annotateCIRefsClass name) cAs
+            | Interface (name, vis, iAs) ->
+                Seq.map (annotateCIRefsInterface name) iAs
+
+        nA.AddRefs(refs)
+
+
+    Seq.iter annotateCIRefsNamespace program
+
+
+
+
+let getGlobalRefs (program:Program) =
+
+    let getGlobalRefsNamespace namespace_ (nA:NamespaceDeclA) =
+        let qname = qualifiedName namespace_ nA.Name []
+        (qname, nA)
+
+
+    let getGlobalRefsTop (tA:TopDeclA) =
+        match tA.Item with
+            | Namespace (name, nAs) ->
+                // Add namespace to all subthings
+                iterAST foldASTTopDecl (fun (annot:Annot) -> annot.Namespace <- name) tA
+                Seq.map (getGlobalRefsNamespace name) nAs
     
 
-let getStdRefsCU (cu:CompilationUnit) =
-    // Find all the usings and collect them together
-    let usings = Seq.fold (fun usingList (declA:TopDeclA) -> match declA.Item with
-        | Using str -> str :: usingList
-        | _ -> usingList) [] cu
+    let getGlobalRefsCU (cu:CompilationUnit) =
+        // Find all the usings and collect them together
+        let usings = Seq.fold (fun usingList (declA:TopDeclA) -> match declA.Item with
+            | Using str -> str :: usingList
+            | _ -> usingList) [] cu
 
-    // Add usings to all subthings
-    iterAST foldASTCompilationUnit (fun (annot:Annot) -> annot.Usings <- usings) cu
-    |> ignore
+        // Add usings to all subthings
+        iterAST foldASTCompilationUnit (fun (annot:Annot) -> annot.Usings <- usings) cu
+        |> ignore
 
-    let namespaces = Seq.filter (fun (tdA:TopDeclA) -> tdA.IsNamespace) cu
-    concatMap getStdRefsTop namespaces
+        let namespaces = Seq.filter (fun (tdA:TopDeclA) -> tdA.IsNamespace) cu
+        concatMap getGlobalRefsTop namespaces
 
 
-let getStdRefs (program:Program) =
-    let globals = concatMap getStdRefsCU program
+    let globals = concatMap getGlobalRefsCU program
     
     // Now make them into a map
     Map.ofSeq globals

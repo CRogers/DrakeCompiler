@@ -2,19 +2,19 @@ using System;
 
 namespace Foo {
 	class Kitten {
-		var age: Int = 3;
+		var age: Int32 = 3;
 
-		agePlus(a: Int) {
+		agePlus(a: Int32) {
 			return age + a;
 		}
 	}
 
 	interface Cat {
-		agePlusOne(a: Int);
+		agePlusOne(a: Int32);
 	}
 }
 
 namespace System {
-	class Int {
+	class Int32 {
 	}
 }
