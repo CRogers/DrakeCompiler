@@ -58,7 +58,6 @@
     <None Include="Parser.fsy" />
     <Compile Include="Lexer.fs" />
     <None Include="Lexer.fsl" />
-    <Compile Include="LLVM-Test.fs" />
     <Compile Include="Gen.fs" />
     <Compile Include="Builtins.fs" />
     <None Include="Builtins.fs.pyex" />

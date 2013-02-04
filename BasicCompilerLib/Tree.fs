@@ -8,7 +8,9 @@ open System.Collections.ObjectModel
 open System
 
 let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
-    namespace_ + "::" + classInterfaceName + "." + String.Join(".", extraNames)
+    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
+        then ""
+        else "." + String.Join(".", extraNames)
 
 type Op = 
     | Add | Sub | Mul | Div
@@ -88,7 +90,7 @@ and [<AbstractClass>] AnnotRefs<'a>(pos:Pos) =
 
     member x.Refs = refs
     member x.AddRef(name, ref:'a) = refs <- refs.Add(name, ref)
-    member x.AddRefs(refs) = Map.iter (fun name ref -> x.AddRef(ref)) refs
+    member x.AddRefs(refs:Map<string,'a>) = Map.iter (fun name ref -> x.AddRef(name, ref)) refs
     member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
     member x.GetRef(name) = Map.tryFind name refs
 

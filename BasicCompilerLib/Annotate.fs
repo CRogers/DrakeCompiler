@@ -25,3 +25,5 @@ let annotate (program:Program) =
     let flatProg = flatternAST program
 
     annotateTypes globals flatProg
+
+    flatProg

@@ -39,7 +39,7 @@ let parse (text: array<string>) =
         | ex ->
             let error = Error("Parse error", Pos(lexbuf.StartPos, lexbuf.EndPos))
             printError text error
-            []
+            failwithf "bleh"
 
 let parseFile file = parse (File.ReadAllLines file)
 let parseText (text: string) = parse <| text.Split('\n')
@@ -53,10 +53,9 @@ type CompilerResult(textLines: array<string>, errors: list<Error>, llvmModule: M
 
 let compile (text:string) =
     let textLines = text.Split('\n')
-    let parsed = parse textLines
+    let parsed = [parse textLines]
     let annotated = Annotate.annotate parsed
-    let checkErrors = Check.check annotated
     let llvmModule = Gen.gen annotated
-    CompilerResult(textLines, checkErrors, llvmModule)
+    CompilerResult(textLines, [], llvmModule)
 
 let writeModuleToFile fileName mo = writeBitcodeToFile mo fileName

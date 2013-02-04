@@ -143,10 +143,10 @@ classDecls:
         { [] }
     | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, \$6, \$8)) \$3 \$9 :: \$10 }
-    | visibility static_ ctor IDENT LPAR params RPAR possibleReturnType EQUALS expr2 classDecls
+    | visibility static_ ctor IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
         { 
             let isStatic = if  (\$2 = Static) || (\$3 = Ctor) then Static else NotStatic
-            cba (ClassProc (v \$4, \$1, isStatic, \$3, \$6, \$8, \$10)) (p \$4) \$10 :: \$11
+            cba (ClassProc (v \$4, \$1, isStatic, \$3, \$6, \$8, \$10)) (p \$4) \$10 :: \$12
         }
 
 possibleReturnType:
@@ -158,6 +158,8 @@ possibleReturnType:
 params:
     | /* empty */
         { [] }
+    | IDENT COLON ptype
+        { [Param(v \$1, \$3)] }
     | IDENT COLON ptype COMMA params
         { Param(v \$1, \$3) :: \$5 }
 

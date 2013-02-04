@@ -46,7 +46,7 @@ let getStdRefsNamespace namespace_ (nA:NamespaceDeclA) =
             Seq.map (getStdRefsInterface namespace_ name) iAs
 
     nA.AddRefs(refs)
-    (nA.Name, nA)
+    (qname, nA)
 
 
 let getStdRefsTop (tA:TopDeclA) =
@@ -68,7 +68,7 @@ let getStdRefsCU (cu:CompilationUnit) =
     |> ignore
 
     let namespaces = Seq.filter (fun (tdA:TopDeclA) -> tdA.IsNamespace) cu
-    concatMap getStdRefsTop cu
+    concatMap getStdRefsTop namespaces
 
 
 let getStdRefs (program:Program) =

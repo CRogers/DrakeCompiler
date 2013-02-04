@@ -11,9 +11,10 @@ process check them
 
 *)
 
-let rec annotateTypesExpr (globals:Map<string,NamespaceDeclA>) (localVars:list<Ref>) (eA:ExprA) =
+let rec annotateTypesExpr (globals:Map<string,NamespaceDeclA>) (localVars:list<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
     eA.AddLocalVars(localVars)
-    let aTE nextEA = annotateTypesExpr globals eA.LocalVars nextEA
+    eA.AddRefs(refs)
+    let aTE nextEA = annotateTypesExpr globals eA.LocalVars eA.Refs nextEA
     eA.PType <- match eA.Item with
         | ConstInt (size, _) -> commonPtype <| Int size
         | ConstBool _        -> commonPtype Bool
@@ -101,20 +102,26 @@ let rec annotateTypesExpr (globals:Map<string,NamespaceDeclA>) (localVars:list<R
             aTE e1A
             // Since e2A is lexically below and and in the same scope as e1A, all 
             // e1A's references also appear in e2A
-            annotateTypesExpr globals e1A.LocalVars e2A
+            annotateTypesExpr globals e1A.LocalVars e1A.Refs e2A
             commonPtype Unit
 
-let annotateTypesClass globals (cA:ClassDeclA) =
-    match cA.Item with
-        | ClassVar (name, vis, isStatic, ptype, eA) ->
-            annotateTypesExpr globals [] eA
+let annotateTypesClass globals classLevelRefs (cA:ClassDeclA) =
+    let eA = match cA.Item with
+        | ClassVar (name, vis, isStatic, ptype, eA) -> eA
         | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
-            annotateTypesExpr globals [] eA
+            Seq.iter (fun (p:Param) -> eA.AddRef(p.Name, Ref(p.Name, p.PType))) params_
+            eA
+
+    annotateTypesExpr globals [] classLevelRefs eA
 
 let annotateTypesNamespace globals (nA:NamespaceDeclA) =
     match nA.Item with
         | Class (name, vis, cAs) ->
-            Seq.iter (annotateTypesClass globals) cAs
+            // Make refs for the cAs so they can reference eachother
+            let classLevelRefs = 
+                Seq.map (fun (cA:ClassDeclA) -> (cA.Name, Ref(cA.Name, cA.PType))) cAs
+                |> Map.ofSeq
+            Seq.iter (annotateTypesClass globals classLevelRefs) cAs
         | _ -> ()
 
 let annotateTypes (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDeclA>) =

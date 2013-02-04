@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Text;
 using CommandLine;
 using System.Collections.Generic;
+using Microsoft.FSharp.Collections;
 
 namespace BasicCompiler
 {
@@ -56,7 +58,7 @@ namespace BasicCompiler
                 else if (options.EmitParser) {
                     output = Print.fmt(Compiler.parseText(input));
                 } else if (options.EmitParserAnnotated) {
-                    output = Print.fmt(Annotate.annotate(Compiler.parseText(input)));
+                    output = Print.fmt(Annotate.annotate(new[] { Compiler.parseText(input) }.ToFsharpList()));
                 }
                 else if (options.EmitLLVM || options.EmitASM) {
                     var compilerResult = Compiler.compile(input);
@@ -106,6 +108,14 @@ namespace BasicCompiler
             }
 
             Console.WriteLine("Can't parse command line args!");
-        }
+        } 
+    }
+
+    static class Extensions
+    {
+        public static FSharpList<T> ToFsharpList<T>(this IEnumerable<T> ie)
+        {
+            return ie.Reverse().Aggregate(FSharpList<T>.Empty, (list, item) => FSharpList<T>.Cons(item, list));
+        } 
     }
 }
