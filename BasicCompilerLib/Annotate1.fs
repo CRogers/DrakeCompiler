@@ -42,12 +42,12 @@ let annotateCIRefs (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDe
 
         match cA.Item with
             | ClassVar (name, vis, isStatic, ptype, eA) ->
-                cA.PType <- newPType cA.Namespace cA.Usings ptype
+                ptype := newPType cA.Namespace cA.Usings !ptype
                 cA.QName <- qname
                 (name, ClassRef (name, cA))
             | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
                 expandParamsQName cA.Namespace cA.Usings params_
-                cA.PType <- paramsReturnTypeToPtype params_ returnType
+                returnType := paramsReturnTypeToPtype params_ returnType
                 cA.QName <- qname
                 (name, ClassRef (name, cA))
 
@@ -56,7 +56,7 @@ let annotateCIRefs (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDe
         match iA.Item with
             | InterfaceProc (name, params_, returnType) ->
                 expandParamsQName iA.Namespace iA.Usings params_
-                iA.PType <- paramsReturnTypeToPtype params_ returnType
+                returnType := paramsReturnTypeToPtype params_ returnType
                 iA.QName <- qualifiedName iA.Namespace iname [name]
                 (name, InterfaceRef (name, iA))
 

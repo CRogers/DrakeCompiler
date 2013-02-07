@@ -13,6 +13,22 @@ let i32 = int32Type ()
 let i64 = int64Type ()
 let tyVoid = voidType ()
 (*
+
++-----------------+             +-------------------+        +-----------------+
+| Vtable Pointer  +-------------> Ptr to class name +-------->Class Name String|
+|-----------------|             |-------------------|        +-----------------+
+|        .        |             |         .         |
+|        .        |             |         .         |
+|        .        |             |         .         |
+|   Class Vars    |             |      Vtable       |
+|        .        |             |         .         |
+|        .        |             |         .         |
+|        .        |             |         .         |
++-----------------+             +-------------------+
+
+*)
+
+(*
 let genClassStructure
 
 let genNamespaceDecl mo (nA:NamespaceDeclA) =

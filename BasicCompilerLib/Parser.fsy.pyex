@@ -106,7 +106,7 @@ interfaceDecls:
     | /* empty */
         { [] }
     | IDENT LPAR params RPAR possibleReturnType SEMI interfaceDecls
-        { ibb (InterfaceProc (v \$1, \$3, \$5)) (p \$1) \$6 :: \$7 }
+        { ibb (InterfaceProc (v \$1, \$3, ref \$5)) (p \$1) \$6 :: \$7 }
 
 possibleType:
     | /* empty */
@@ -142,18 +142,18 @@ classDecls:
     | /* empty */
         { [] }
     | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
-        { cbb (ClassVar (v \$4, \$1, \$2, \$6, \$8)) \$3 \$9 :: \$10 }
+        { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
     | visibility static_ ctor IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
         { 
             let isStatic = if  (\$2 = Static) || (\$3 = Ctor) then Static else NotStatic
-            cba (ClassProc (v \$4, \$1, isStatic, \$3, \$6, \$8, \$10)) (p \$4) \$10 :: \$12
+            cba (ClassProc (v \$4, \$1, isStatic, \$3, \$6, ref \$8, \$10)) (p \$4) \$10 :: \$12
         }
 
 possibleReturnType:
     | /* empty */
         { commonPtype Unit }
-    | ptype
-        { \$1 }
+    | COLON ptype
+        { \$2 }
 
 params:
     | /* empty */
