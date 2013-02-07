@@ -13,19 +13,23 @@ let concatMap f items =
     Seq.map f items
     |> Seq.concat
 
-let annotateCIRefs (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDeclA>) =
+let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 
     let getQName namespace_ usings name =
         // See if it is a qualified name first
         if isQualifiedName name then
             // Look up in globals
-            Map.findKey (fun key value -> key = name) globals
+            match Map.tryFindKey (fun key value -> key = name) globals with
+                | None -> failwithf "Couldn't find %s in globals" name
+                | Some x -> x
         else
             // Look in local place first then usings
             let placesToLook = Seq.append [namespace_] usings
             match Seq.tryPick (fun nspace -> Map.tryFindKey (fun key value -> key = qualifiedName nspace name []) globals) placesToLook with
                 | Some qname -> qname
-                | None -> Map.findKey (fun key value -> key = name) globals                    
+                | None -> match Map.tryFindKey (fun key value -> key = name) globals with
+                    | None -> failwithf "Couldn't find %s in globals" name
+                    | Some x -> x                  
 
 
     let rec newPType nspace usings ptype = match ptype with
@@ -44,12 +48,12 @@ let annotateCIRefs (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDe
             | ClassVar (name, vis, isStatic, ptype, eA) ->
                 ptype := newPType cA.Namespace cA.Usings !ptype
                 cA.QName <- qname
-                (name, ClassRef (name, cA))
+                (name, ClassRef cA)
             | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
                 expandParamsQName cA.Namespace cA.Usings params_
                 returnType := paramsReturnTypeToPtype params_ returnType
                 cA.QName <- qname
-                (name, ClassRef (name, cA))
+                (name, ClassRef cA)
 
 
     let annotateCIRefsInterface iname (iA:InterfaceDeclA) =
@@ -58,7 +62,7 @@ let annotateCIRefs (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDe
                 expandParamsQName iA.Namespace iA.Usings params_
                 returnType := paramsReturnTypeToPtype params_ returnType
                 iA.QName <- qualifiedName iA.Namespace iname [name]
-                (name, InterfaceRef (name, iA))
+                (name, InterfaceRef iA)
 
 
     let annotateCIRefsNamespace (nA:NamespaceDeclA) =

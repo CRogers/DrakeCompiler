@@ -54,8 +54,8 @@ type CompilerResult(textLines: array<string>, errors: list<Error>, llvmModule: M
 let compile (text:string) =
     let textLines = text.Split('\n')
     let parsed = [parse textLines]
-    let annotated = Annotate.annotate parsed
-    let llvmModule = Gen.gen annotated
+    let (globals, annotated) = Annotate.annotate parsed
+    let llvmModule = Gen.gen globals annotated
     CompilerResult(textLines, [], llvmModule)
 
 let writeModuleToFile fileName mo = writeBitcodeToFile mo fileName

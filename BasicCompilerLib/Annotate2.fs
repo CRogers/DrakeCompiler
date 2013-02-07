@@ -11,7 +11,7 @@ process check them
 
 *)
 
-let rec annotateTypesExpr (globals:Map<string,NamespaceDeclA>) (localVars:list<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
+let rec annotateTypesExpr (globals:GlobalStore) (localVars:list<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
     eA.AddLocalVars(localVars)
     eA.AddRefs(refs)
     let aTE nextEA = annotateTypesExpr globals eA.LocalVars eA.Refs nextEA
@@ -46,8 +46,8 @@ let rec annotateTypesExpr (globals:Map<string,NamespaceDeclA>) (localVars:list<R
                     let nA = Map.find typeName globals
                     match nA.GetRef(name) with
                         | None -> failwithf "Cannot access non existent member %s" name
-                        | Some (ClassRef (_,cA))     -> cA.PType
-                        | Some (InterfaceRef (_,iA)) -> iA.PType
+                        | Some (ClassRef cA)     -> cA.PType
+                        | Some (InterfaceRef iA) -> iA.PType
                 // Static
                 | StaticType typeName ->
                     match Map.tryFind typeName globals with
@@ -55,7 +55,7 @@ let rec annotateTypesExpr (globals:Map<string,NamespaceDeclA>) (localVars:list<R
                         | Some nA ->
                             match nA.GetRef(name) with
                                 | None -> failwithf "Can't access non existant static member %s" name
-                                | Some (ClassRef (_,cA)) -> match cA.IsStatic with
+                                | Some (ClassRef cA) -> match cA.IsStatic with
                                     | Static -> cA.PType
                                     | NotStatic -> failwithf "Can only call *static* classrefs"
                                 | _ -> failwithf "Can only call static class refs"
@@ -124,5 +124,5 @@ let annotateTypesNamespace globals (nA:NamespaceDeclA) =
             Seq.iter (annotateTypesClass globals classLevelRefs) cAs
         | _ -> ()
 
-let annotateTypes (globals:Map<string,NamespaceDeclA>) (program:seq<NamespaceDeclA>) =
+let annotateTypes (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
     Seq.iter (annotateTypesNamespace globals) program

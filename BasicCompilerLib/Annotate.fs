@@ -27,4 +27,4 @@ let annotate (program:Program) =
     annotateCIRefs globals flatProg
     annotateTypes globals flatProg
 
-    flatProg
+    (globals, flatProg) 

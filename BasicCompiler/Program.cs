@@ -58,7 +58,7 @@ namespace BasicCompiler
                 else if (options.EmitParser) {
                     output = Print.fmt(Compiler.parseText(input));
                 } else if (options.EmitParserAnnotated) {
-                    output = Print.fmt(Annotate.annotate(new[] { Compiler.parseText(input) }.ToFsharpList()).ToFsharpList());
+                    output = Print.fmt(Annotate.annotate(new[] { Compiler.parseText(input) }.ToFsharpList()).Item2.ToFsharpList());
                 }
                 else if (options.EmitLLVM || options.EmitASM) {
                     var compilerResult = Compiler.compile(input);

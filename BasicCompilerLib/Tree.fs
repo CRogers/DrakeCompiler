@@ -1,6 +1,7 @@
 module Tree
 
 open Print
+open LLVMTypes
 open LLVM.Generated.Core
 open Microsoft.FSharp.Text.Lexing
 open System.Collections.Generic
@@ -84,7 +85,7 @@ let getGlobal globals namespace_ (usings:seq<string>) name =
 
 
 
-
+type Name = string
 
 type IsStatic =
     | Static
@@ -102,8 +103,8 @@ type IVisibility =
     abstract Visibility : Visibility
 
 type CIRef = 
-    | ClassRef of string * ClassDeclA
-    | InterfaceRef of string * InterfaceDeclA 
+    | ClassRef of ClassDeclA
+    | InterfaceRef of InterfaceDeclA 
 
 and [<AbstractClass>] Annot(pos:Pos) =
     member val LocalVars:list<Ref> = [] with get, set
@@ -163,14 +164,16 @@ and ExprA(item:Expr, pos:Pos) =
 
 
 and ClassDecl =
-    | ClassVar of string * Visibility * (*static*) IsStatic * PType ref * ExprA
-    | ClassProc of (*name*) string * Visibility * (*static*) IsStatic * (*ctor*) IsCtor * (*params*) list<Param> * (*returnType*) PType ref * (*body*) ExprA
+    | ClassVar of Name * Visibility * IsStatic * PType ref * ExprA
+    | ClassProc of Name * Visibility * IsStatic * IsCtor * list<Param> * (*returnType*) PType ref * (*body*) ExprA
     
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = upcast item
+
+    member val Offset = -1 with get, set
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
@@ -190,7 +193,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
 
 and InterfaceDecl =
-    | InterfaceProc of (*name*) string * (*params*) list<Param> * (*returnType*) PType ref
+    | InterfaceProc of (*name*) Name * (*params*) list<Param> * (*returnType*) PType ref
     
 
 and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
@@ -205,13 +208,21 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
         | InterfaceProc (name, _, _) -> name
 
 and NamespaceDecl =
-    | Class of string * Visibility * list<ClassDeclA>
-    | Interface of string * Visibility * list<InterfaceDeclA>
+    | Class of Name * Visibility * list<ClassDeclA>
+    | Interface of Name * Visibility * list<InterfaceDeclA>
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     inherit AnnotRefs<CIRef>(pos)
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
+
+    member val InstanceType = tyVoid with get, set
+    member val StaticType = tyVoid with get, set
+    member val VTableType = tyVoid with get, set
+
+    member x.InstancePointerType = pointerType x.InstanceType 0u
+    member x.StaticPointerType = pointerType x.StaticType 0u
+    member x.VTablePointerType = pointerType x.VTableType 0u
 
     member x.Visibility = match x.Item with
             | Class (_, vis, _) -> vis
@@ -223,8 +234,8 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
 
 
 type TopDecl =
-    | Using of string
-    | Namespace of string * list<NamespaceDeclA>
+    | Using of Name
+    | Namespace of Name * list<NamespaceDeclA>
 
 type TopDeclA(item:TopDecl, pos:Pos) =
     inherit Annot(pos)
@@ -237,6 +248,8 @@ type TopDeclA(item:TopDecl, pos:Pos) =
 
 type CompilationUnit = list<TopDeclA>
 type Program = list<CompilationUnit>
+
+type GlobalStore = Map<string, NamespaceDeclA>
 
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =
     member x.Name = name
