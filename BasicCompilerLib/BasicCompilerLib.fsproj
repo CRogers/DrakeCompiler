@@ -51,6 +51,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Util.fs" />
     <Compile Include="Print.fs" />
     <Compile Include="LLVMTypes.fs" />
     <Compile Include="Tree.fs" />

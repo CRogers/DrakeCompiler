@@ -24,15 +24,22 @@ $ ->
 					loadTest $(this).text()
 
 	compile = (code) ->
-		$.ajax
-			type: 'POST'
-			data:
-				code: code
-			dataType: 'json'
-			url: modifyingQS '/api/compiler'
-			success: (data) ->
-				for k, v of data
-					$('#'+k+'-output').text v
+		post = (item) ->
+			$.ajax
+				type: 'POST'
+				data:
+					code: code
+				dataType: 'json'
+				url: modifyingQS "/api/compiler/#{item}"
+				success: (data) ->
+					for k, v of data
+						$('#'+k+'-output').text v
+
+		post 'lexer'
+		post 'parser'
+		post 'parserAnnot'
+		post 'llvm'
+		post 'asm'
 
 	# tabify the output tabs
 	$('#output-tabs a').click (e) ->

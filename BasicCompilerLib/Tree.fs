@@ -91,9 +91,9 @@ type IsStatic =
     | Static
     | NotStatic
 
-type IsCtor =
-    | Ctor
-    | NotCtor
+let isStatic x = match x with
+    | Static -> true
+    | NotStatic -> false
 
 type Visibility =
     | Private
@@ -165,7 +165,7 @@ and ExprA(item:Expr, pos:Pos) =
 
 and ClassDecl =
     | ClassVar of Name * Visibility * IsStatic * PType ref * ExprA
-    | ClassProc of Name * Visibility * IsStatic * IsCtor * list<Param> * (*returnType*) PType ref * (*body*) ExprA
+    | ClassProc of Name * Visibility * IsStatic * list<Param> * (*returnType*) PType ref * (*body*) ExprA
     
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
@@ -177,19 +177,19 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
-        | ClassProc (_, _, _, _, params_, returnType, _) -> paramsReturnTypeToPtype params_ returnType
+        | ClassProc (_, _, _, params_, returnType, _) -> paramsReturnTypeToPtype params_ returnType
 
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _, _) -> vis
-        | ClassProc (_, vis, _, _, _, _, _) -> vis
+        | ClassProc (_, vis, _, _, _, _) -> vis
 
     member x.Name = match x.Item with
         | ClassVar (name, _, _, _, _) -> name
-        | ClassProc (name, _, _, _, _, _, _) -> name
+        | ClassProc (name, _, _, _, _, _) -> name
 
     member x.IsStatic = match x.Item with
         | ClassVar (_, _, isStatic, _, _) -> isStatic
-        | ClassProc (_, _, isStatic, _, _, _, _) -> isStatic
+        | ClassProc (_, _, isStatic, _, _, _) -> isStatic
 
 
 and InterfaceDecl =
@@ -215,6 +215,8 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     inherit AnnotRefs<CIRef>(pos)
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
+
+    member val CtorRef:Ref = Ref(null, Undef) with get, set
 
     member val InstanceType = tyVoid with get, set
     member val StaticType = tyVoid with get, set
@@ -287,7 +289,7 @@ let foldASTClassDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a
     let fAST e = foldASTExpr branchFunc leafFunc e
     match cdecl.Item with
         | ClassVar (_, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
-        | ClassProc (_, _, _, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
+        | ClassProc (_, _, _, _, _, exprA) -> branchFunc cdecl [fAST exprA]
 
 let foldASTInterfaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (idecl:InterfaceDeclA) =
     leafFunc idecl

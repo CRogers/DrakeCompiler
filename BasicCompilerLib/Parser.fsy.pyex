@@ -132,22 +132,13 @@ static_:
     | STATIC
         { Static }
 
-ctor:
-    | /* empty */
-        { Ctor }
-    | CONSTRUCTOR
-        { NotCtor }
-
 classDecls:
     | /* empty */
         { [] }
     | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
-    | visibility static_ ctor IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
-        { 
-            let isStatic = if  (\$2 = Static) || (\$3 = Ctor) then Static else NotStatic
-            cba (ClassProc (v \$4, \$1, isStatic, \$3, \$6, ref \$8, \$10)) (p \$4) \$10 :: \$12
-        }
+    | visibility static_ IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
+        { cba (ClassProc (v \$3, \$1, \$2, \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
 
 possibleReturnType:
     | /* empty */

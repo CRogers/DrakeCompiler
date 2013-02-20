@@ -49,7 +49,10 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
                 ptype := newPType cA.Namespace cA.Usings !ptype
                 cA.QName <- qname
                 (name, ClassRef cA)
-            | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
+            | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
+                // Check to see that proc name isn't the same as the classname
+                if name = cname then failwithf "Can't use %s as the name for class %s - must be different" name name
+                // Type expansion
                 expandParamsQName cA.Namespace cA.Usings params_
                 returnType := paramsReturnTypeToPtype params_ returnType
                 cA.QName <- qname
@@ -69,8 +72,10 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
         // We need to go deeper - add CIRefs for classes/interfaces
         let refs = match nA.Item with
             | Class (name, vis, cAs) ->
+                nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsClass name) cAs
             | Interface (name, vis, iAs) ->
+                nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsInterface name) iAs
 
         nA.AddRefs(refs)

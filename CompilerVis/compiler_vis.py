@@ -58,26 +58,45 @@ def getTest(name=''):
 	print 'returning test ' + TESTSDIR + '/' + name 
 	return static_file(name, TESTSDIR)
 
-@post('/api/compiler')
-def postCompiler():
+@post('/api/compiler/lexer')
+def postCompilerLex():
+	return postCompiler(response, request, "lexer", "-s -l")
+
+@post('/api/compiler/parser')
+def postCompilerLex():
+	return postCompiler(response, request, "parser", "-s -p")
+
+@post('/api/compiler/parserAnnot')
+def postCompilerLex():
+	return postCompiler(response, request, "parserAnnot", "-s -q")
+
+@post('/api/compiler/llvm')
+def postCompilerLex():
+	return postCompiler(response, request, "llvm", "-s -v")
+
+@post('/api/compiler/asm')
+def postCompilerLex():
+	return postCompiler(response, request, "asm", "-s -a")
+
+def postCompiler(response, request, name, switches):
 	response.content_type = 'text/json'
 	code = request.forms.get('code')
 
+	return json.dumps({name: runCompiler(code, switches)})
+
+
+def runCompiler(code, switches):
 	fd, tmp = tempfile.mkstemp()
 	os.write(fd, code)
 	os.close(fd)
 
-	lexer = run(COMPILERLOC, '-s -l ' + tmp)
-	parser = run(COMPILERLOC, '-s -p ' + tmp)
-	parserAnnot = run(COMPILERLOC, '-s -q ' + tmp)
-	llvm = run(COMPILERLOC, '-s -v ' + tmp)
-	asm = run(COMPILERLOC, '-s -a ' + tmp)
+	return run(COMPILERLOC, switches + ' ' + tmp)
 
-	fd = os.open(tmp, os.O_WRONLY)
+	"""fd = os.open(tmp, os.O_WRONLY)
 	os.write(fd, llvm)
 	os.close(fd)
 	exe = run('lli', tmp)
-	os.remove(tmp)	
+	os.remove(tmp)
 
 	return json.dumps({
 		'lexer':lexer,
@@ -85,6 +104,6 @@ def postCompiler():
 		'parserAnnot':parserAnnot,
 		'llvm':llvm,
 		'asm':asm,
-		'exe':exe})
+		'exe':exe})"""
 
 bottle.run(host='localhost', port='8900')

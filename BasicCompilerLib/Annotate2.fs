@@ -3,6 +3,7 @@
 open Tree
 open Builtins
 open Print
+open Util
 
 (*
 
@@ -105,23 +106,35 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:list<Ref>) (refs:Map<
             annotateTypesExpr globals e1A.LocalVars e1A.Refs e2A
             commonPtype Unit
 
-let annotateTypesClass globals classLevelRefs (cA:ClassDeclA) =
+let annotateTypesClass globals instanceLevelRefs staticLevelRefs (cA:ClassDeclA) =
     let eA = match cA.Item with
         | ClassVar (name, vis, isStatic, ptype, eA) -> eA
-        | ClassProc (name, vis, isStatic, isCtor, params_, returnType, eA) ->
+        | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
             Seq.iter (fun (p:Param) -> eA.AddRef(p.Name, Ref(p.Name, p.PType))) params_
             eA
 
-    annotateTypesExpr globals [] classLevelRefs eA
+    // Add ctor ref if it is a static class
+    let initRefs = match cA.IsStatic with
+        | NotStatic -> instanceLevelRefs
+        | Static -> staticLevelRefs
+
+    annotateTypesExpr globals [] initRefs eA
 
 let annotateTypesNamespace globals (nA:NamespaceDeclA) =
     match nA.Item with
         | Class (name, vis, cAs) ->
-            // Make refs for the cAs so they can reference eachother
+            // Ref for the ctor
+            let ctorRef = Ref(name, PFunc ([], UserType nA.QName))
+            nA.CtorRef <- ctorRef
+
+            // Make refs for the cAs so they can reference eachother. Left for static, Right for not static
             let classLevelRefs = 
-                Seq.map (fun (cA:ClassDeclA) -> (cA.Name, Ref(cA.Name, cA.PType))) cAs
-                |> Map.ofSeq
-            Seq.iter (annotateTypesClass globals classLevelRefs) cAs
+                Seq.map (fun (cA:ClassDeclA) -> either (isStatic cA.IsStatic) (cA.Name, Ref(cA.Name, cA.PType))) cAs
+
+            let instanceLevelRefs = allEithers classLevelRefs |> Map.ofSeq
+            let staticLevelRefs = Seq.append [name, ctorRef] (lefts classLevelRefs) |> Map.ofSeq
+
+            Seq.iter (annotateTypesClass globals staticLevelRefs instanceLevelRefs) cAs
         | _ -> ()
 
 let annotateTypes (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
