@@ -4,6 +4,7 @@ open Tree
 open Builtins
 open Print
 open Util
+open System.Collections.Generic
 
 (*
 
@@ -12,10 +13,17 @@ process check them
 
 *)
 
-let rec annotateTypesExpr (globals:GlobalStore) (localVars:list<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
-    eA.AddLocalVars(localVars)
+let annotateTypesLvalue (refs:Map<string,Ref>) (eA:ExprA) =
     eA.AddRefs(refs)
-    let aTE nextEA = annotateTypesExpr globals eA.LocalVars eA.Refs nextEA
+    match eA.Item with
+        | Var n -> match eA.GetRef(n) with
+            | Some r -> r.PType
+            | None -> failwithf "lvalue annotate fail"
+
+
+let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
+    eA.AddRefs(refs)
+    let aTE nextEA = annotateTypesExpr globals localVars eA.Refs nextEA
     eA.PType <- match eA.Item with
         | ConstInt (size, _) -> commonPtype <| Int size
         | ConstBool _        -> commonPtype Bool
@@ -74,15 +82,18 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:list<Ref>) (refs:Map<
                 | _ ->
                     failwithf "Can only call function types!"
             
-        | Assign (name, innerExprA) ->
+        | Assign (lvalue, innerExprA) ->
+            annotateTypesLvalue eA.Refs lvalue |> ignore
             aTE innerExprA
             innerExprA.PType
         | DeclVar (name, assignA) ->
-            aTE assignA
             // Since we have declared a variable, add a reference object for it
-            let ref = Ref(name, assignA.PType)
+            let ref = Ref(name, Undef)
+            assignA.AddRef(name, ref)
+            aTE assignA
+            ref.PType <- assignA.PType
             eA.AddRef(name, ref)
-            eA.AddLocalVar(ref)
+            localVars.Add(ref)
             assignA.PType
         | Print exprA ->
             aTE exprA
@@ -103,7 +114,7 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:list<Ref>) (refs:Map<
             aTE e1A
             // Since e2A is lexically below and and in the same scope as e1A, all 
             // e1A's references also appear in e2A
-            annotateTypesExpr globals e1A.LocalVars e1A.Refs e2A
+            annotateTypesExpr globals localVars e1A.Refs e2A
             commonPtype Unit
 
 let annotateTypesClass globals instanceLevelRefs staticLevelRefs (cA:ClassDeclA) =
@@ -118,7 +129,11 @@ let annotateTypesClass globals instanceLevelRefs staticLevelRefs (cA:ClassDeclA)
         | NotStatic -> instanceLevelRefs
         | Static -> staticLevelRefs
 
-    annotateTypesExpr globals [] initRefs eA
+    let localVars = new List<Ref>()
+    annotateTypesExpr globals localVars initRefs eA
+
+    eA.AddLocalVars(List.ofSeq localVars)
+    cA.AddLocalVars(List.ofSeq localVars)
 
 let annotateTypesNamespace globals (nA:NamespaceDeclA) =
     match nA.Item with

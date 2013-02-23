@@ -24,7 +24,7 @@ type PType =
 
 and Ref(name: string, ptype:PType) =
     member x.Name = name
-    member x.PType = ptype
+    member val PType = ptype with get, set
     member val ValueRef = new ValueRef(nativeint 0xDED) with get, set
     member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDED
 
@@ -144,7 +144,7 @@ and Expr =
     | Binop of Op * ExprA * ExprA
     | Dot of ExprA * string
     | Call of ExprA * list<ExprA>
-    | Assign of string * ExprA
+    | Assign of ExprA * ExprA
     | DeclVar of string * (*Assign*) ExprA
     | Print of ExprA
     | Return of ExprA

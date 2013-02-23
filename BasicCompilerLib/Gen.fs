@@ -92,6 +92,15 @@ let genMalloc externs bldr ty =
     buildBitCast bldr mem (pointerType ty 0u) ""
 
 
+let genLvalue bldr (eA:ExprA) =
+    match eA.Item with
+        | Var n ->
+            // See if a ref, if not it's a
+            match eA.GetRef(n) with
+                | Some r -> r.ValueRef
+                | None -> failwithf "unimplemented"
+                    
+
 let rec genExpr bldr (eA:ExprA) =
     let genE = genExpr bldr
     match eA.Item with
@@ -100,7 +109,8 @@ let rec genExpr bldr (eA:ExprA) =
         | Var n ->
             match eA.GetRef(n) with
                 | None -> failwithf "Can't find ref %s" n
-                | Some r -> r.ValueRef
+                | Some r -> 
+                    buildLoad bldr r.ValueRef r.Name
         | Binop (op, left, right) ->
             let bIcmp cond = (fun bldr -> buildICmp bldr cond)
             let buildFunc = match op with
@@ -116,8 +126,17 @@ let rec genExpr bldr (eA:ExprA) =
                 | GtEq ->       bIcmp IntPredicate.IntSGE 
                 | Eq ->         bIcmp IntPredicate.IntEQ
             buildFunc bldr (genE left) (genE right) ""
+        | DeclVar (name, assignA) ->
+            genE assignA
+        | Assign (lvalue, eA) ->
+            let addr = genLvalue bldr lvalue
+            let e = genE eA
+            buildStore bldr e addr
         | Return eA ->
             buildRet bldr <| genE eA
+        | Seq (eA1, eA2) ->
+            genE eA1 |> ignore
+            genE eA2
 
 
 let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
@@ -141,11 +160,16 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
             let entry = appendBasicBlock func "entry"
             positionBuilderAtEnd bldr entry
 
+            // Allocate space for local variables
+            Seq.iter (fun (r:Ref) -> r.ValueRef <- buildAlloca bldr (getIPT r.PType) r.Name) eA.LocalVars
+
             // Get the value refs for the function params and set the function expr's ref's valuerefs
             let paramSeq = Seq.iteri (fun i (p:Param) ->
                 let llvmParam = getParam func <| uint32 i
                 setValueName llvmParam p.Name
-                (eA.GetRef(p.Name) |> Option.get).ValueRef <- llvmParam) params_
+                let stackSpace = buildAlloca bldr paramsTy.[i] p.Name
+                buildStore bldr llvmParam stackSpace |> ignore
+                (eA.GetRef(p.Name) |> Option.get).ValueRef <- stackSpace) params_
 
             // Execute procedure body
             let expr = genExpr bldr eA

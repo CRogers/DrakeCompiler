@@ -52,10 +52,19 @@ type CompilerResult(textLines: array<string>, errors: list<Error>, llvmModule: M
     member x.Module = llvmModule
 
 let compile (text:string) =
-    let textLines = text.Split('\n')
-    let parsed = [parse textLines]
-    let (globals, annotated) = Annotate.annotate parsed
-    let llvmModule = Gen.gen globals annotated
-    CompilerResult(textLines, [], llvmModule)
+    try
+        let textLines = text.Split('\n')
+        let parsed = [parse textLines]
+        let (globals, annotated) = Annotate.annotate parsed
+        let llvmModule = Gen.gen globals annotated
+        CompilerResult(textLines, [], llvmModule)
+    with
+        | ex -> 
+            printfn "Exception message: %s" ex.Message
+            printfn "Stacktrace: \n%s" ex.StackTrace
+            if System.Diagnostics.Debugger.IsAttached then
+                raise ex
+            else
+                CompilerResult([||], [], moduleCreateWithName "fail")
 
 let writeModuleToFile fileName mo = writeBitcodeToFile mo fileName
