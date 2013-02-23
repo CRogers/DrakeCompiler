@@ -15,7 +15,7 @@ process check them
 
 let annotateTypesLvalue (refs:Map<string,Ref>) (eA:ExprA) =
     eA.AddRefs(refs)
-    match eA.Item with
+    eA.PType <- match eA.Item with
         | Var n -> match eA.GetRef(n) with
             | Some r -> r.PType
             | None -> failwithf "lvalue annotate fail"
@@ -70,7 +70,7 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
                                 | _ -> failwithf "Can only call static class refs"
 
         | Call (feA, exprAs) ->
-            aTE feA
+            annotateTypesLvalue eA.Refs feA
             Seq.iter aTE exprAs
             let callingArgPtypes = List.map (fun (eA:ExprA) -> eA.PType) exprAs
 
@@ -83,12 +83,12 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
                     failwithf "Can only call function types!"
             
         | Assign (lvalue, innerExprA) ->
-            annotateTypesLvalue eA.Refs lvalue |> ignore
+            annotateTypesLvalue eA.Refs lvalue
             aTE innerExprA
             innerExprA.PType
         | DeclVar (name, assignA) ->
             // Since we have declared a variable, add a reference object for it
-            let ref = Ref(name, Undef)
+            let ref = Ref(name, Undef, LocalRef)
             assignA.AddRef(name, ref)
             aTE assignA
             ref.PType <- assignA.PType
@@ -121,7 +121,11 @@ let annotateTypesClass globals instanceLevelRefs staticLevelRefs (cA:ClassDeclA)
     let eA = match cA.Item with
         | ClassVar (name, vis, isStatic, ptype, eA) -> eA
         | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
-            Seq.iter (fun (p:Param) -> eA.AddRef(p.Name, Ref(p.Name, p.PType))) params_
+            // Add params as refs
+            Seq.iter (fun (p:Param) -> eA.AddRef(p.Name, Ref(p.Name, p.PType, LocalRef))) !params_
+            // If an instance method add the 'this' param
+            if isStatic = NotStatic then
+                eA.AddRef("this", Ref("this", UserType <| cA.NamespaceDecl.Value.QName, LocalRef))
             eA
 
     // Add ctor ref if it is a static class
@@ -139,17 +143,20 @@ let annotateTypesNamespace globals (nA:NamespaceDeclA) =
     match nA.Item with
         | Class (name, vis, isStruct, cAs) ->
             // Ref for the ctor
-            let ctorRef = Ref(name, PFunc ([], UserType nA.QName))
+            let ctorRef = Ref(name, PFunc ([], UserType nA.QName), StaticProcRef)
             nA.CtorRef <- ctorRef
 
             // Make refs for the cAs so they can reference eachother. Left for static, Right for not static
             let classLevelRefs = 
-                Seq.map (fun (cA:ClassDeclA) -> either (isStatic cA.IsStatic) (cA.Name, Ref(cA.Name, cA.PType))) cAs
+                List.map (fun (cA:ClassDeclA) ->
+                    let ref = Ref(cA.Name, cA.PType, if cA.IsProc then (if cA.IsStatic = Static then StaticProcRef else InstanceProcRef) else InstanceVarRef)
+                    cA.Ref <- ref
+                    either (isStatic cA.IsStatic) (cA.Name, ref)) cAs
 
             let instanceLevelRefs = allEithers classLevelRefs |> Map.ofSeq
             let staticLevelRefs = Seq.append [name, ctorRef] (lefts classLevelRefs) |> Map.ofSeq
 
-            Seq.iter (annotateTypesClass globals staticLevelRefs instanceLevelRefs) cAs
+            Seq.iter (annotateTypesClass globals instanceLevelRefs staticLevelRefs) cAs
         | _ -> ()
 
 let annotateTypes (globals:GlobalStore) (program:seq<NamespaceDeclA>) =

@@ -3,6 +3,10 @@
 let getSomes xs = Seq.filter Option.isSome xs |> Seq.map Option.get
 
 
+let concatMap f items =
+    Seq.map f items
+    |> Seq.concat 
+
 type Either<'a, 'b> =
     | Left of 'a
     | Right of 'b
@@ -24,3 +28,5 @@ let allEithers xs = Seq.map (fun x ->
 
 let lefts xs = Seq.map isLeft xs |> getSomes
 let rights xs = Seq.map isRight xs |> getSomes
+
+// Warning	39	Possible incorrect indentation: this token is offside of context started at position (105:18). Try indenting this token further or using standard formatting conventions.	C:\Dropbox\Programming\Visual Studio 2012\Projects\BasicCompiler\BasicCompilerLib\Tree.fs	106	5	BasicCompilerLib

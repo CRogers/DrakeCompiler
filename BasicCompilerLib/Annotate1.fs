@@ -1,17 +1,15 @@
 ﻿module Annotate1
 
 open Tree
+open Util
 
 (*
 
 Blaze through the AST and get all names/locations of classes/interfaces, their methods and variables
 and make a default map of references that can be added for everything
 
-*)
+*)           
 
-let concatMap f items =
-    Seq.map f items
-    |> Seq.concat
 
 let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 
@@ -53,7 +51,7 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
                 // Check to see that proc name isn't the same as the classname
                 if name = cname then failwithf "Can't use %s as the name for class %s - must be different" name name
                 // Type expansion
-                expandParamsQName cA.Namespace cA.Usings params_
+                expandParamsQName cA.Namespace cA.Usings !params_
                 returnType := newPType cA.Namespace cA.Usings !returnType
                 cA.QName <- qname
                 (name, ClassRef cA)
@@ -89,6 +87,9 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 let getGlobalRefs (program:Program) =
 
     let getGlobalRefsNamespace namespace_ (nA:NamespaceDeclA) =
+        // Identify sub things with which class they are in
+        iterAST foldASTNamespaceDecl (fun (annot:Annot) -> annot.NamespaceDecl <- Some nA) nA |> ignore
+
         let qname = qualifiedName namespace_ nA.Name []
         (qname, nA)
 

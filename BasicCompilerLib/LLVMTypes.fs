@@ -23,3 +23,8 @@ let intSizeToTy s = match s with
     | 16 -> i16
     | 32 -> i32
     | 64 -> i64
+
+
+let uninitValueRef = new ValueRef(nativeint 0xDED)
+
+let isUninitValueRef (vr:ValueRef) = vr.Ptr.ToInt32() = 0xDED

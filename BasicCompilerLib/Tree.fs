@@ -5,13 +5,21 @@ open LLVMTypes
 open LLVM.Generated.Core
 open Microsoft.FSharp.Text.Lexing
 open System.Collections.Generic
-open System.Collections.ObjectModel
 open System
+open Util
 
 type Op = 
     | Add | Sub | Mul | Div
     | BoolAnd | BoolOr | Not
     | Lt | Gt | LtEq | GtEq | Eq
+
+type RefType =
+    | LocalRef
+    | InstanceVarRef
+    | InstanceProcRef
+    | StaticProcRef
+with
+    override x.ToString() = fmt x
 
 type PType = 
     | Undef
@@ -22,11 +30,14 @@ type PType =
     with
     override x.ToString() = fmt x
 
-and Ref(name: string, ptype:PType) =
+and Ref(name: string, ptype:PType, reftype:RefType) =
     member x.Name = name
     member val PType = ptype with get, set
-    member val ValueRef = new ValueRef(nativeint 0xDED) with get, set
-    member x.IsUninitialised = x.ValueRef.Ptr.ToInt32() = 0xDED
+    member val RefType = reftype
+    member val ValueRef = uninitValueRef with get, set
+    member x.IsUninitialised = isUninitValueRef x.ValueRef
+
+    override x.ToString() = sprintf "Ref(%s, %s, %s)" x.Name (x.PType.ToString()) (x.RefType.ToString())
 
 type CommonPtype =
     | Unit
@@ -56,6 +67,9 @@ let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
 
 let isQualifiedName (name:string) = name.Contains("::")
 
+let paramsReturnTypeToPtype (params_:list<Param>) returnType =
+    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
+    PFunc (ptypeParams, returnType)
 
 let cpPrefix x = "System::" + x 
 
@@ -106,7 +120,10 @@ type IVisibility =
 
 type CIRef = 
     | ClassRef of ClassDeclA
-    | InterfaceRef of InterfaceDeclA 
+    | InterfaceRef of InterfaceDeclA
+with
+    override x.ToString() = fmt x
+    
 
 and [<AbstractClass>] Annot(pos:Pos) =
     member val LocalVars:list<Ref> = [] with get, set
@@ -120,6 +137,7 @@ and [<AbstractClass>] Annot(pos:Pos) =
     member val QName = "" with get, set
     member val Usings:list<string> = [] with get, set
     member val Namespace = "" with get, set
+    member val NamespaceDecl:Option<NamespaceDeclA> = None with get, set
 
     override x.ToString() = fmt x.ItemObj
         (*":" + x.Pos.ToString() +
@@ -167,7 +185,7 @@ and ExprA(item:Expr, pos:Pos) =
 
 and ClassDecl =
     | ClassVar of Name * Visibility * IsStatic * PType ref * ExprA
-    | ClassProc of Name * Visibility * IsStatic * list<Param> * (*returnType*) PType ref * (*body*) ExprA
+    | ClassProc of Name * Visibility * IsStatic * list<Param> ref * (*returnType*) PType ref * (*body*) ExprA
     
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
@@ -176,10 +194,16 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     override x.ItemObj = upcast item
 
     member val Offset = -1 with get, set
+    member val Ref = Ref("", Undef, StaticProcRef) with get, set
+    member val FuncType = new TypeRef(nativeint 0xDEF) with get, set
+
+    member x.IsProc = match x.Item with
+        | ClassVar _ -> false
+        | ClassProc _ -> true
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
-        | ClassProc (_, _, _, params_, returnType, _) -> !returnType
+        | ClassProc (_, _, _, params_, returnType, _) -> paramsReturnTypeToPtype !params_ !returnType
 
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _, _) -> vis
@@ -218,7 +242,7 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
 
-    member val CtorRef:Ref = Ref(null, Undef) with get, set
+    member val CtorRef:Ref = Ref(null, Undef, StaticProcRef) with get, set
 
     member val InstanceType = tyVoid with get, set
     member val StaticType = tyVoid with get, set
@@ -227,6 +251,10 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.InstancePointerType = pointerType x.InstanceType 0u
     member x.StaticPointerType = pointerType x.StaticType 0u
     member x.VTablePointerType = pointerType x.VTableType 0u
+
+    member x.IsClass = match x.Item with
+        | Class _ -> true
+        | Interface _ -> false
 
     member x.Visibility = match x.Item with
             | Class (_, vis, _, _) -> vis
@@ -257,6 +285,18 @@ type TopDeclA(item:TopDecl, pos:Pos) =
 type CompilationUnit = list<TopDeclA>
 type Program = list<CompilationUnit>
 
+let getNamespaceDecls (program:Program) =
+    Util.concatMap (Seq.map (fun (tdA:TopDeclA) -> match tdA.Item with Namespace (_, nAs) -> Some nAs | _ -> None)) program
+    |> Util.getSomes
+    |> Seq.concat
+
+let getClassDecls (nAs:seq<NamespaceDeclA>) =
+    nAs
+    |> Seq.map (fun (nA:NamespaceDeclA) -> match nA.Item with Class (_, _, _, cAs) -> Some cAs | _ -> None)
+    |> Util.getSomes
+    |> Seq.concat
+
+
 type GlobalStore = Map<string, NamespaceDeclA>
 
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =
@@ -283,7 +323,7 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | Binop (op, l, r) -> bf [l; r]
         | Dot (eA, name) -> bf1 eA
         | Call (feA, exprAs) -> bf <| feA :: exprAs
-        | Assign (name, innerExprA) -> bf1 innerExprA
+        | Assign (lvalue, innerExprA) -> bf [lvalue; innerExprA]
         | DeclVar (name, assignA) -> bf1 assignA
         | Print e -> bf1 e
         | Return e -> bf1 e

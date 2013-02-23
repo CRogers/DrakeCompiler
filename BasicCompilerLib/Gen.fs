@@ -24,13 +24,32 @@ open LLVM.Generated.BitWriter
 
 *)
 
+let getInstPointTy (globals:GlobalStore) ptype =
+    let nA = Map.find (match ptype with UserType s -> s) globals
+    match nA.IsStruct with
+        | Struct -> nA.InstanceType
+        | NotStruct -> nA.InstancePointerType
+
+
+let genClassVarGEP bldr this offset = 
+    buildStructGEP bldr this (uint32 offset) ""
+
+let genClassVarStore bldr this offset value =
+    let ptr = genClassVarGEP bldr this offset
+    buildStore bldr value ptr
+
+let genClassVarLoad bldr this offset =
+    let ptr = genClassVarGEP bldr this offset
+    buildLoad bldr ptr ""
+
+
 let getLLVMType (globals:GlobalStore) ptype =
     match ptype with
         | UserType name -> (Map.find name globals).InstanceType
         | StaticType name -> (Map.find name globals).StaticType
         | _ -> failwithf "Can't find llvm type for %s" <| ptype.ToString()
 
-let genClassStructures (globals:GlobalStore) context (program:seq<NamespaceDeclA>) =
+let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDeclA>) =
     
     let createInitStructures (nA:NamespaceDeclA) =
         match nA.Item with
@@ -74,9 +93,28 @@ let genClassStructures (globals:GlobalStore) context (program:seq<NamespaceDeclA
 
             | _ -> ()
 
+    let genClassProcStub (cA:ClassDeclA) =
+        match cA.Item with
+            | ClassVar _ -> ()
+            | ClassProc (name, vis, isStatic, params_, retType, eA) ->                
+                // Create a new function
+                let retTy = getInstPointTy globals !retType
+                let paramsTy = Seq.map (fun (p:Param) -> getInstPointTy globals p.PType) !params_ |> Seq.toArray
+                let funcTy = functionType retTy paramsTy
+                let func = addFunction mo cA.QName funcTy
+
+                // Set func value ref for class decl
+                cA.Ref.ValueRef <- func
+                cA.FuncType <- funcTy
+
+    let genClassProcStubs (nA:NamespaceDeclA) =
+        match nA.Item with
+            | Class (_, _, _, cAs) -> Seq.iter genClassProcStub cAs
+            | _ -> ()
     
     Seq.iter createInitStructures program
     Seq.iter genClassStructure program
+    Seq.iter genClassProcStubs program
 
 
 let genConstInt ty x = constInt ty x false
@@ -109,8 +147,9 @@ let rec genExpr bldr (eA:ExprA) =
         | Var n ->
             match eA.GetRef(n) with
                 | None -> failwithf "Can't find ref %s" n
-                | Some r -> 
-                    buildLoad bldr r.ValueRef r.Name
+                | Some r -> match r.RefType with
+                    | LocalRef -> buildLoad bldr r.ValueRef r.Name
+                    //| InstanceVarRef -> genClassVarLoad
         | Binop (op, left, right) ->
             let bIcmp cond = (fun bldr -> buildICmp bldr cond)
             let buildFunc = match op with
@@ -126,6 +165,27 @@ let rec genExpr bldr (eA:ExprA) =
                 | GtEq ->       bIcmp IntPredicate.IntSGE 
                 | Eq ->         bIcmp IntPredicate.IntEQ
             buildFunc bldr (genE left) (genE right) ""
+        | Call (eA, args) ->
+            let argEs = List.map genE args
+            match eA.Item with
+                | Var n ->
+                    let currClass = Option.get eA.NamespaceDecl
+                    let ref = eA.GetRef(n)
+                    let funcvr = match ref with
+                        | None -> failwithf "Can't find correct thing to call"
+                        | Some r -> match r.RefType with
+                            | InstanceProcRef -> r.ValueRef
+                            | StaticProcRef -> r.ValueRef
+                            | _ -> failwithf "Can only call a function"
+
+                    // Adjust instance method call with "this" arg
+                    let fixedArgs = match ref.Value.RefType with
+                        | StaticProcRef -> argEs
+                        | InstanceProcRef ->
+                            let thisLoc = eA.GetRef("this").Value.ValueRef
+                            buildLoad bldr thisLoc "this" :: argEs
+
+                    buildCall bldr funcvr (Array.ofList fixedArgs) ""
         | DeclVar (name, assignA) ->
             genE assignA
         | Assign (lvalue, eA) ->
@@ -138,47 +198,34 @@ let rec genExpr bldr (eA:ExprA) =
             genE eA1 |> ignore
             genE eA2
 
-
 let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
     match cA.Item with
         | ClassVar _ -> ()
-        | ClassProc (name, vis, isStatic, params_, retType, eA) -> 
+        | ClassProc (name, vis, isStatic, params_, retType, eA) ->
             use bldr = new Builder()
-            // Create a new function
-            let getIPT ptype =
-                let nA = Map.find (match ptype with UserType s -> s) globals
-                match nA.IsStruct with
-                    | Struct -> nA.InstanceType
-                    | NotStruct -> nA.InstancePointerType
-
-            let retTy = getIPT !retType
-            let paramsTy = Seq.map (fun (p:Param) -> getIPT p.PType) params_ |> Seq.toArray
-            let funcTy = functionType retTy paramsTy
-            let func = addFunction mo cA.QName funcTy
+            let func = cA.Ref.ValueRef
 
             // Basic block
             let entry = appendBasicBlock func "entry"
             positionBuilderAtEnd bldr entry
 
             // Allocate space for local variables
-            Seq.iter (fun (r:Ref) -> r.ValueRef <- buildAlloca bldr (getIPT r.PType) r.Name) eA.LocalVars
+            Seq.iter (fun (r:Ref) -> r.ValueRef <- buildAlloca bldr (getInstPointTy globals r.PType) r.Name) eA.LocalVars
+
+            let paramsTy = getParamTypes cA.FuncType
 
             // Get the value refs for the function params and set the function expr's ref's valuerefs
-            let paramSeq = Seq.iteri (fun i (p:Param) ->
+            Seq.iteri (fun i (p:Param) ->
                 let llvmParam = getParam func <| uint32 i
                 setValueName llvmParam p.Name
                 let stackSpace = buildAlloca bldr paramsTy.[i] p.Name
                 buildStore bldr llvmParam stackSpace |> ignore
-                (eA.GetRef(p.Name) |> Option.get).ValueRef <- stackSpace) params_
+                (eA.GetRef(p.Name) |> Option.get).ValueRef <- stackSpace) !params_
 
             // Execute procedure body
             let expr = genExpr bldr eA
             ()
 
-
-let genClassVarStore bldr this offset value =
-    let ptr = buildStructGEP bldr this (uint32 offset) ""
-    buildStore bldr value ptr
 
 let genNamespace globals externs mo (nA:NamespaceDeclA) =
     match nA.Item with
@@ -238,7 +285,7 @@ let gen (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
     let externs = genExterns mo
 
     // Build the structures required to store the information
-    genClassStructures globals context program
+    genClassStructures globals context mo program
 
     // Build the class/interface operations themselves
     Seq.iter (genNamespace globals externs mo) program
