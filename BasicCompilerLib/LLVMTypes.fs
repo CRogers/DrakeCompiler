@@ -15,3 +15,11 @@ let i32p = pointerType i32 0u
 let i64p = pointerType i64 0u
 
 let tyVoid = voidType ()
+
+
+let intSizeToTy s = match s with
+    | 1  -> i1
+    | 8  -> i8
+    | 16 -> i16
+    | 32 -> i32
+    | 64 -> i64

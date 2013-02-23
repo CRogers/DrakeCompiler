@@ -236,6 +236,10 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         | Class (name, _, _, _) -> name
         | Interface (name, _, _) -> name
 
+    member x.IsStruct = match x.Item with
+        | Class (_, _, isStruct, _) -> isStruct
+        | Interface (_, _, _) -> NotStruct
+
 
 type TopDecl =
     | Using of Name

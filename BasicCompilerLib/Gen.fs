@@ -79,7 +79,11 @@ let genClassStructures (globals:GlobalStore) context (program:seq<NamespaceDeclA
     Seq.iter genClassStructure program
 
 
-let genConstInt ty x = constInt ty (uint64 x) false
+let genConstInt ty x = constInt ty x false
+
+let genConstBool b = match b with
+    | true -> genConstInt i1 0UL
+    | false -> genConstInt i1 1UL
 
 let genMalloc externs bldr ty =
     let mallocFunc = Map.find "malloc" externs
@@ -88,18 +92,46 @@ let genMalloc externs bldr ty =
     buildBitCast bldr mem (pointerType ty 0u) ""
 
 
-let genExpr bldr (eA:ExprA) =
+let rec genExpr bldr (eA:ExprA) =
+    let genE = genExpr bldr
     match eA.Item with
-        | _ -> genConstInt i32 99    
+        | ConstInt (s, i) -> genConstInt (intSizeToTy s) (uint64 i)
+        | ConstBool b -> genConstBool b
+        | Var n ->
+            match eA.GetRef(n) with
+                | None -> failwithf "Can't find ref %s" n
+                | Some r -> r.ValueRef
+        | Binop (op, left, right) ->
+            let bIcmp cond = (fun bldr -> buildICmp bldr cond)
+            let buildFunc = match op with
+                | Add ->        buildAdd
+                | Sub ->        buildSub
+                | Div ->        buildSDiv
+                | Mul ->        buildMul
+                | BoolAnd ->    buildAnd
+                | BoolOr ->     buildOr
+                | Lt ->         bIcmp IntPredicate.IntSLT 
+                | Gt ->         bIcmp IntPredicate.IntSGT 
+                | LtEq ->       bIcmp IntPredicate.IntSLE 
+                | GtEq ->       bIcmp IntPredicate.IntSGE 
+                | Eq ->         bIcmp IntPredicate.IntEQ
+            buildFunc bldr (genE left) (genE right) ""
+        | Return eA ->
+            buildRet bldr <| genE eA
 
 
-let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =    
+let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
     match cA.Item with
         | ClassVar _ -> ()
-        | ClassProc (name, vis, Static, params_, retType, eA) ->  
+        | ClassProc (name, vis, isStatic, params_, retType, eA) -> 
             use bldr = new Builder()
             // Create a new function
-            let getIPT ptype = (Map.find (match ptype with UserType s -> s) globals).InstancePointerType
+            let getIPT ptype =
+                let nA = Map.find (match ptype with UserType s -> s) globals
+                match nA.IsStruct with
+                    | Struct -> nA.InstanceType
+                    | NotStruct -> nA.InstancePointerType
+
             let retTy = getIPT !retType
             let paramsTy = Seq.map (fun (p:Param) -> getIPT p.PType) params_ |> Seq.toArray
             let funcTy = functionType retTy paramsTy
@@ -108,11 +140,16 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
             // Basic block
             let entry = appendBasicBlock func "entry"
             positionBuilderAtEnd bldr entry
-            
+
+            // Get the value refs for the function params and set the function expr's ref's valuerefs
+            let paramSeq = Seq.iteri (fun i (p:Param) ->
+                let llvmParam = getParam func <| uint32 i
+                setValueName llvmParam p.Name
+                (eA.GetRef(p.Name) |> Option.get).ValueRef <- llvmParam) params_
+
             // Execute procedure body
             let expr = genExpr bldr eA
             ()
-        | ClassProc (name, vis, NotStatic, params_, retType, eA) -> ()
 
 
 let genClassVarStore bldr this offset value =
