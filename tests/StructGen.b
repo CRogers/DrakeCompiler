@@ -3,10 +3,9 @@ using System;
 namespace Foo {
 	class Kitten {
 		var age: Int32 = 3;
-	}
-}
-
-namespace System {
-	class Int32 {
-	}
+        
+        public static foo():Int32 {
+            return 0;
+        }
+    }
 }

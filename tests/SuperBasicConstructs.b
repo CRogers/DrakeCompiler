@@ -2,7 +2,11 @@ using System;
 
 namespace Foo {
 	class Kitten {
-		var age: Int32 = 3;
+		pub age: Int32;
+
+		pub ctor new() {
+			age = 4;
+		}
 
 		agePlus(a: Int32) {
 			return age + a;

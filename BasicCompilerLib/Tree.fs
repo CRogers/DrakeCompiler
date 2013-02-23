@@ -38,6 +38,8 @@ type Pos(startPos:Position, endPos:Position) =
     member x.StartPos = startPos
     member x.EndPos = endPos
     override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
+    static member NilPosition = {pos_fname= ""; pos_lnum = 0; pos_bol = 0; pos_cnum = 0}
+    static member NilPos = Pos(Pos.NilPosition, Pos.NilPosition)
 
 type Param(name: string, ptype: PType) =
     member x.Name = name
@@ -62,10 +64,6 @@ let commonPtype x = UserType (cpPrefix <| match x with
     | Int i  -> "Int" + i.ToString()
     | Bool   -> "Bool"
     | String -> "String")
-
-let paramsReturnTypeToPtype (params_:list<Param>) returnType =
-    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
-    PFunc (ptypeParams, !returnType)
 
 
 let getGlobal globals namespace_ (usings:seq<string>) name =
@@ -94,6 +92,10 @@ type IsStatic =
 let isStatic x = match x with
     | Static -> true
     | NotStatic -> false
+
+type IsStruct =
+    | Struct
+    | NotStruct
 
 type Visibility =
     | Private
@@ -177,7 +179,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
-        | ClassProc (_, _, _, params_, returnType, _) -> paramsReturnTypeToPtype params_ returnType
+        | ClassProc (_, _, _, params_, returnType, _) -> !returnType
 
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _, _) -> vis
@@ -202,13 +204,13 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     override x.ItemObj = upcast item
 
     member x.PType = match x.Item with
-        | InterfaceProc (_, params_, returnType) -> paramsReturnTypeToPtype params_ returnType
+        | InterfaceProc (_, params_, returnType) -> !returnType
 
     member x.Name = match x.Item with
         | InterfaceProc (name, _, _) -> name
 
 and NamespaceDecl =
-    | Class of Name * Visibility * list<ClassDeclA>
+    | Class of Name * Visibility * IsStruct * list<ClassDeclA>
     | Interface of Name * Visibility * list<InterfaceDeclA>
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
@@ -227,11 +229,11 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.VTablePointerType = pointerType x.VTableType 0u
 
     member x.Visibility = match x.Item with
-            | Class (_, vis, _) -> vis
+            | Class (_, vis, _, _) -> vis
             | Interface (_, vis, _) -> vis
 
     member x.Name = match x.Item with
-        | Class (name, _, _) -> name
+        | Class (name, _, _, _) -> name
         | Interface (name, _, _) -> name
 
 
@@ -297,7 +299,7 @@ let foldASTInterfaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -
 let foldASTNamespaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (ndecl:NamespaceDeclA) =
     let fAST fASTFunc declAs = branchFunc ndecl <| List.map (fASTFunc branchFunc leafFunc) declAs
     match ndecl.Item with
-        | Class (_, _, cdeclAs) -> fAST foldASTClassDecl cdeclAs
+        | Class (_, _, _, cdeclAs) -> fAST foldASTClassDecl cdeclAs
         | Interface (_, _, ideclAs) -> fAST foldASTInterfaceDecl ideclAs
 
 let foldASTTopDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (tdecl:TopDeclA) =

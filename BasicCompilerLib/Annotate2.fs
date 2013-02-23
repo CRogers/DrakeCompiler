@@ -122,7 +122,7 @@ let annotateTypesClass globals instanceLevelRefs staticLevelRefs (cA:ClassDeclA)
 
 let annotateTypesNamespace globals (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (name, vis, cAs) ->
+        | Class (name, vis, isStruct, cAs) ->
             // Ref for the ctor
             let ctorRef = Ref(name, PFunc ([], UserType nA.QName))
             nA.CtorRef <- ctorRef

@@ -48,7 +48,7 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
 %token<Pos>            RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
 %token<Pos>            IF THEN ELSE WHILE DO VAR
-%token<Pos>            NAMESPACE CLASS INTERFACE
+%token<Pos>            NAMESPACE CLASS STRUCT INTERFACE
 %token<Pos>            PRIVATE PUBLIC
 %token<Pos>            STATIC CONSTRUCTOR
 %token<Pos>            ARROW USING DOT SRO
@@ -94,11 +94,27 @@ visibility:
     | PUBLIC
         { Public }
 
+static_:
+    | /* empty */
+        { NotStatic }
+    | STATIC
+        { Static }
+
+visibilityStatic:
+    | /* empty */
+        { (Private, NotStatic) }
+
+classOrStruct:
+    | STRUCT
+        { Struct }
+    | CLASS
+        { NotStruct }
+
 namespaceDecls:
     | /* empty */
         { [] }
-    | visibility CLASS IDENT LCURLY classDecls RCURLY namespaceDecls
-        { nbb (Class (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
+    | visibility classOrStruct IDENT LCURLY classDecls RCURLY namespaceDecls
+        { nbb (Class (v \$3, \$1, \$2, \$5)) (p \$3) \$4 :: \$7 }
     | visibility INTERFACE IDENT LCURLY interfaceDecls RCURLY namespaceDecls
         { nbb (Interface (v \$3, \$1, \$5)) \$2 \$4 :: \$7 }
 
@@ -107,6 +123,14 @@ interfaceDecls:
         { [] }
     | IDENT LPAR params RPAR possibleReturnType SEMI interfaceDecls
         { ibb (InterfaceProc (v \$1, \$3, ref \$5)) (p \$1) \$6 :: \$7 }
+
+classDecls:
+    | /* empty */
+        { [] }
+    | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
+        { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
+    | visibility static_ IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
+        { cba (ClassProc (v \$3, \$1, \$2, \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
 
 possibleType:
     | /* empty */
@@ -125,20 +149,6 @@ ptypeList:
         { [] }
     | ptype COMMA ptypeList
         { \$1 :: \$3 }
-
-static_:
-    | /* empty */
-        { NotStatic }
-    | STATIC
-        { Static }
-
-classDecls:
-    | /* empty */
-        { [] }
-    | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
-        { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
-    | visibility static_ IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
-        { cba (ClassProc (v \$3, \$1, \$2, \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
 
 possibleReturnType:
     | /* empty */

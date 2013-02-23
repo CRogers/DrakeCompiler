@@ -28,7 +28,10 @@ and fmt(x):string =
         else
             let fieldsStr = String.Join(" ", Array.map fmt fields)
             sprintf "(%s %s)" union.Name fieldsStr
-    else
+    elif t.Name.StartsWith("FSharpRef") then
+        let v = t.GetProperty("contents").GetValue(x)
+        sprintf "ref{%s}" <| v.ToString()
+    else  
         x.ToString()
 
 let printfmt x = Console.WriteLine(fmt x)

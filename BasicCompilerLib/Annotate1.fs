@@ -54,7 +54,7 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
                 if name = cname then failwithf "Can't use %s as the name for class %s - must be different" name name
                 // Type expansion
                 expandParamsQName cA.Namespace cA.Usings params_
-                returnType := paramsReturnTypeToPtype params_ returnType
+                returnType := newPType cA.Namespace cA.Usings !returnType
                 cA.QName <- qname
                 (name, ClassRef cA)
 
@@ -63,7 +63,7 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
         match iA.Item with
             | InterfaceProc (name, params_, returnType) ->
                 expandParamsQName iA.Namespace iA.Usings params_
-                returnType := paramsReturnTypeToPtype params_ returnType
+                returnType := newPType iA.Namespace iA.Usings !returnType
                 iA.QName <- qualifiedName iA.Namespace iname [name]
                 (name, InterfaceRef iA)
 
@@ -71,7 +71,7 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
     let annotateCIRefsNamespace (nA:NamespaceDeclA) =
         // We need to go deeper - add CIRefs for classes/interfaces
         let refs = match nA.Item with
-            | Class (name, vis, cAs) ->
+            | Class (name, vis, isStruct, cAs) ->
                 nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsClass name) cAs
             | Interface (name, vis, iAs) ->
@@ -117,5 +117,8 @@ let getGlobalRefs (program:Program) =
 
     let globals = concatMap getGlobalRefsCU program
     
+    // Add System globals
+    let globsPlusBuiltins = Seq.append Builtins.builtinsSeq globals
+
     // Now make them into a map
-    Map.ofSeq globals
+    Map.ofSeq globsPlusBuiltins

@@ -34,7 +34,7 @@ let genClassStructures (globals:GlobalStore) context (program:seq<NamespaceDeclA
     
     let createInitStructures (nA:NamespaceDeclA) =
         match nA.Item with
-            | Class (name, vis, cAs) ->
+            | Class (name, vis, isStruct, cAs) ->
                 nA.InstanceType <- structCreateNamed context nA.QName
                 nA.StaticType <- structCreateNamed context <| nA.QName + "+Static"
                 nA.VTableType <- structCreateNamed context <| nA.QName + "+VTable"
@@ -43,7 +43,7 @@ let genClassStructures (globals:GlobalStore) context (program:seq<NamespaceDeclA
 
     let genClassStructure (nA:NamespaceDeclA) =
         match nA.Item with
-            | Class (name, vis, cAs) ->
+            | Class (name, vis, isStruct, cAs) ->
                 let getLLVMVarTypes isStatic =
                     let varTypesOptions =
                         Seq.mapi (fun i (cA:ClassDeclA) ->
@@ -99,8 +99,8 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
         | ClassProc (name, vis, Static, params_, retType, eA) ->  
             use bldr = new Builder()
             // Create a new function
-            let getIPT ptype = (Map.find (match !retType with UserType s -> s) globals).InstancePointerType
-            let retTy = getIPT retType
+            let getIPT ptype = (Map.find (match ptype with UserType s -> s) globals).InstancePointerType
+            let retTy = getIPT !retType
             let paramsTy = Seq.map (fun (p:Param) -> getIPT p.PType) params_ |> Seq.toArray
             let funcTy = functionType retTy paramsTy
             let func = addFunction mo cA.QName funcTy
@@ -121,7 +121,7 @@ let genClassVarStore bldr this offset value =
 
 let genNamespace globals externs mo (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (name, vis, cAs) ->
+        | Class (name, vis, isStruct, cAs) ->
             // Make object allocation ctor func
             let ctorFuncTy = functionType nA.InstancePointerType [||]
             let ctorFunc = addFunction mo (nA.QName + "+ctor") ctorFuncTy
@@ -136,11 +136,11 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
             let initClassVars (cA:ClassDeclA) = match cA.Item with
                 | ClassVar (name, vis, NotStatic, ptype, eA) ->
                     let expr = genExpr bldr eA
-                    Some <| genClassVarStore bldr this cA.Offset expr
-                | _ -> None
+                    genClassVarStore bldr this cA.Offset expr |> ignore
+                | _ -> ()
 
-            let varInits = Seq.map initClassVars cAs |> Util.getSomes
-            printfn "%d" <| Seq.length varInits
+            // Initialise instance variables
+            Seq.iter initClassVars cAs
 
             // Return the this pointer
             buildRet bldr this |> ignore
