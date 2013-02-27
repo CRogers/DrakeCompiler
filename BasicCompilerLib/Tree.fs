@@ -96,7 +96,6 @@ let getGlobal globals namespace_ (usings:seq<string>) name =
                         | None -> None
 
 
-
 type Name = string
 
 type IsStatic =
@@ -297,6 +296,16 @@ let getClassDecls (nAs:seq<NamespaceDeclA>) =
     |> Util.getSomes
     |> Seq.concat
 
+let isReturn (eA:ExprA) = match eA.Item with
+    | Return _ -> true
+    | ReturnVoid -> true
+    | _ -> false
+
+let rec lastInSeq (expr:ExprA) = match expr.Item with
+    | Seq (e1A, e2A) -> lastInSeq e2A
+    | _ -> expr
+
+let isLastInSeqRet eA = isReturn <| lastInSeq eA
 
 type GlobalStore = Map<string, NamespaceDeclA>
 

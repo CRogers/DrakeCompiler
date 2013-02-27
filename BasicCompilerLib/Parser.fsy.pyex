@@ -183,7 +183,7 @@ expr1:
         { eba (Return \$2) \$1 \$2 }
     | RETURN SEMI
         { ea ReturnVoid \$1  }
-    | IF LPAR expr3 RPAR expr2 ELSE expr2
+    | IF LPAR expr3 RPAR expr1 ELSE expr1
         { eba (If (\$3, \$5, \$7)) \$1 \$5 }
     | WHILE LPAR expr3 RPAR expr2
         { ebb (While (\$3, \$5)) \$1 \$4 }

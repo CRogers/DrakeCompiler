@@ -139,8 +139,8 @@ let genLvalue bldr (eA:ExprA) =
                 | None -> failwithf "unimplemented"
                     
 
-let rec genExpr bldr (eA:ExprA) =
-    let genE = genExpr bldr
+let rec genExpr func bldr (eA:ExprA) =
+    let genE = genExpr func bldr
     match eA.Item with
         | ConstInt (s, i) -> genConstInt (intSizeToTy s) (uint64 i)
         | ConstBool b -> genConstBool b
@@ -196,6 +196,30 @@ let rec genExpr bldr (eA:ExprA) =
             buildRet bldr <| genE eA
         | ReturnVoid ->
             buildRetVoid bldr
+        | If (test, then_, else_) ->
+            let thenRet = isLastInSeqRet then_
+            let elseRet = isLastInSeqRet else_
+
+            let ifthen = appendBasicBlock func "ifthen"
+            let ifelse = appendBasicBlock func "ifelse"
+            let ifcont = appendBasicBlock func "ifcont"
+            // If
+            let testexpr = genE test
+            buildCondBr bldr testexpr ifthen ifelse |> ignore
+            // Then
+            positionBuilderAtEnd bldr ifthen
+            genE then_ |> ignore
+            if not thenRet then buildBr bldr ifcont |> ignore
+            // Else
+            positionBuilderAtEnd bldr ifelse
+            genE else_ |> ignore
+            if not elseRet then buildBr bldr ifcont |> ignore
+            // Cont
+            if thenRet && elseRet then
+                removeBasicBlockFromParent ifcont
+            else
+                positionBuilderAtEnd bldr ifcont
+            uninitValueRef
         | Seq (eA1, eA2) ->
             genE eA1 |> ignore
             genE eA2
@@ -225,7 +249,7 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
                 (eA.GetRef(p.Name) |> Option.get).ValueRef <- stackSpace) !params_
 
             // Execute procedure body
-            let expr = genExpr bldr eA
+            let expr = genExpr func bldr eA
 
             ()
 
@@ -246,7 +270,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
             
             let initClassVars (cA:ClassDeclA) = match cA.Item with
                 | ClassVar (name, vis, NotStatic, ptype, eA) ->
-                    let expr = genExpr bldr eA
+                    let expr = genExpr ctorFunc bldr eA
                     genClassVarStore bldr this cA.Offset expr |> ignore
                 | _ -> ()
 
@@ -275,7 +299,7 @@ let genExterns mo =
 
     [
         addExtern "malloc" i8p [|i32|];
-        addExtern "puts" i32 [|i8p|]
+        addExtern "puts" i32 [|i8p|];
     ]
     |> Map.ofSeq
     
