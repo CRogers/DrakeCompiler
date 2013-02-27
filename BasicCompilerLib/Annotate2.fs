@@ -101,6 +101,8 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
         | Return exprA ->
             aTE exprA
             commonPtype Unit
+        | ReturnVoid ->
+            commonPtype Unit
         | If (test, then_, else_) ->
             aTE test
             aTE then_

@@ -149,7 +149,7 @@ let rec genExpr bldr (eA:ExprA) =
                 | None -> failwithf "Can't find ref %s" n
                 | Some r -> match r.RefType with
                     | LocalRef -> buildLoad bldr r.ValueRef r.Name
-                    //| InstanceVarRef -> genClassVarLoad
+                    //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "") 
         | Binop (op, left, right) ->
             let bIcmp cond = (fun bldr -> buildICmp bldr cond)
             let buildFunc = match op with
@@ -194,6 +194,8 @@ let rec genExpr bldr (eA:ExprA) =
             buildStore bldr e addr
         | Return eA ->
             buildRet bldr <| genE eA
+        | ReturnVoid ->
+            buildRetVoid bldr
         | Seq (eA1, eA2) ->
             genE eA1 |> ignore
             genE eA2
@@ -224,6 +226,7 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
 
             // Execute procedure body
             let expr = genExpr bldr eA
+
             ()
 
 

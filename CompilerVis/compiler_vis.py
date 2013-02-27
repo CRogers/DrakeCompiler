@@ -92,18 +92,4 @@ def runCompiler(code, switches):
 
 	return run(COMPILERLOC, switches + ' ' + tmp)
 
-	"""fd = os.open(tmp, os.O_WRONLY)
-	os.write(fd, llvm)
-	os.close(fd)
-	exe = run('lli', tmp)
-	os.remove(tmp)
-
-	return json.dumps({
-		'lexer':lexer,
-		'parser':parser,
-		'parserAnnot':parserAnnot,
-		'llvm':llvm,
-		'asm':asm,
-		'exe':exe})"""
-
 bottle.run(host='localhost', port='8900')

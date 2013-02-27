@@ -164,7 +164,6 @@ params:
     | IDENT COLON ptype COMMA params
         { Param(v \$1, \$3) :: \$5 }
 
-
 expr0:
     | expr1
         { \$1 }
@@ -182,6 +181,8 @@ expr1:
             eba (DeclVar (v \$2, assign)) \$1 \$4 }
     | RETURN expr3 SEMI
         { eba (Return \$2) \$1 \$2 }
+    | RETURN SEMI
+        { ea ReturnVoid \$1  }
     | IF LPAR expr3 RPAR expr2 ELSE expr2
         { eba (If (\$3, \$5, \$7)) \$1 \$5 }
     | WHILE LPAR expr3 RPAR expr2

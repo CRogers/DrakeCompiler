@@ -14,6 +14,7 @@ let builtinsSeq =
 $for(x in intsizes)\
         ("System::Int$(x)", (let nA = NamespaceDeclA(Class ("System::Int$(x)", Public, Struct, []), Pos.NilPos) in nA.InstanceType <- i$(x); nA));
 $endfor\
+        ("System::Unit", (let nA = NamespaceDeclA(Class ("System::Unit", Public, Struct, []), Pos.NilPos) in nA.InstanceType <- tyVoid; nA));
     ]
 
 let builtinsMap = Map.ofSeq builtinsSeq
