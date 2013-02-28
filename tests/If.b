@@ -24,5 +24,9 @@ namespace T {
 			else
 				return;
 		}
+
+		public static main(){
+			return;
+		}
 	}
 }

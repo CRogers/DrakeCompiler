@@ -302,7 +302,29 @@ let genExterns mo =
         addExtern "puts" i32 [|i8p|];
     ]
     |> Map.ofSeq
+   
+
+let genMain mo (program:seq<NamespaceDeclA>) =
+    // Make main entry function
+    let main = addFunction mo "main" <| functionType i32 [||]
+    let entry = appendBasicBlock main "entry"
+    use bldr = new Builder()
+    positionBuilderAtEnd bldr entry
     
+    // Find the class with the static main() method and run it first
+    let cAs = getClassDecls program
+    let cAmain = Seq.tryFind (fun (cA:ClassDeclA) -> match cA.Item with
+        | ClassProc ("main", Public, Static, params_, _, _ ) when !params_ = [] -> true
+        | _ -> false) cAs
+
+    match cAmain with
+        | None -> failwithf "No public static main() method found"
+        | Some cA ->
+            buildCall bldr cA.Ref.ValueRef [||] "" |> ignore
+
+    // Add terminator
+    buildRet bldr (genConstInt i32 0UL) |> ignore
+            
 
 let gen (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
     let context = contextCreate ()
@@ -316,5 +338,8 @@ let gen (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 
     // Build the class/interface operations themselves
     Seq.iter (genNamespace globals externs mo) program
+
+    // Generate the initial main function
+    genMain mo program
     
     mo
