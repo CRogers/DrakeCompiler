@@ -61,6 +61,7 @@
     <Compile Include="Lexer.fs" />
     <None Include="Lexer.fsl" />
     <Compile Include="Gen.fs" />
+    <Compile Include="BuiltinGen.fs" />
     <Compile Include="Builtins.fs" />
     <None Include="Builtins.fs.pyex" />
     <Compile Include="Check.fs" />

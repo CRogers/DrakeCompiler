@@ -27,8 +27,8 @@ open LLVM.Generated.BitWriter
 let getInstPointTy (globals:GlobalStore) ptype =
     let nA = Map.find (match ptype with UserType s -> s) globals
     match nA.IsStruct with
-        | Struct -> nA.InstanceType
-        | NotStruct -> nA.InstancePointerType
+        | Struct -> nA.InstanceType.Value
+        | NotStruct -> nA.InstancePointerType.Value
 
 
 let genClassVarGEP bldr this offset = 
@@ -45,8 +45,8 @@ let genClassVarLoad bldr this offset =
 
 let getLLVMType (globals:GlobalStore) ptype =
     match ptype with
-        | UserType name -> (Map.find name globals).InstanceType
-        | StaticType name -> (Map.find name globals).StaticType
+        | UserType name -> (Map.find name globals).InstanceType.Value
+        | StaticType name -> (Map.find name globals).StaticType.Value
         | _ -> failwithf "Can't find llvm type for %s" <| ptype.ToString()
 
 let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDeclA>) =
@@ -54,9 +54,9 @@ let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDe
     let createInitStructures (nA:NamespaceDeclA) =
         match nA.Item with
             | Class (name, vis, isStruct, cAs) ->
-                nA.InstanceType <- structCreateNamed context nA.QName
-                nA.StaticType <- structCreateNamed context <| nA.QName + "+Static"
-                nA.VTableType <- structCreateNamed context <| nA.QName + "+VTable"
+                nA.InstanceType <- Some (structCreateNamed context nA.QName)
+                nA.StaticType <- Some (structCreateNamed context <| nA.QName + "+Static")
+                nA.VTableType <- Some (structCreateNamed context <| nA.QName + "+VTable")
             | _ -> ()
 
 
@@ -78,18 +78,18 @@ let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDe
 
                 // Instance Type
                 let varTypes = getLLVMVarTypes NotStatic
-                let types = Seq.append [|nA.VTablePointerType|] varTypes
+                let types = Seq.append [|nA.VTablePointerType.Value|] varTypes
 
-                structSetBody nA.InstanceType (Seq.toArray types) false
+                structSetBody nA.InstanceType.Value (Seq.toArray types) false
 
                 // Static Type
                 let varTypes = getLLVMVarTypes Static
-                let types = Seq.append [|nA.VTablePointerType|] varTypes
+                let types = Seq.append [|nA.VTablePointerType.Value|] varTypes
 
-                structSetBody nA.StaticType (Seq.toArray types) false
+                structSetBody nA.StaticType.Value (Seq.toArray types) false
 
                 // VTable Type
-                structSetBody nA.VTableType [|i32|] false
+                structSetBody nA.VTableType.Value [|i32|] false
 
             | _ -> ()
 
@@ -117,30 +117,50 @@ let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDe
     Seq.iter genClassProcStubs program
 
 
-let genConstInt ty x = constInt ty x false
-
-let genConstBool b = match b with
-    | true -> genConstInt i1 0UL
-    | false -> genConstInt i1 1UL
-
 let genMalloc externs bldr ty =
     let mallocFunc = Map.find "malloc" externs
     let llSize = buildIntCast bldr (sizeOf ty) i32 ""
     let mem = buildCall bldr mallocFunc [|llSize|] "malloc"
     buildBitCast bldr mem (pointerType ty 0u) ""
 
+let genLvalue (globals:GlobalStore) bldr (eA:ExprA) =
+    let getGlobal = getGlobal globals eA.Namespace eA.Usings
 
-let genLvalue bldr (eA:ExprA) =
+    let getGlobalsRef globalName refName =
+        match getGlobal globalName with
+            | None ->  failwith "Can't find global %s" refName
+            | Some nA -> match nA.GetRef(refName) with
+                | None -> failwithf "Can't find ref %s for global %s" refName globalName
+                | Some r -> (nA, r)
+
     match eA.Item with
         | Var n ->
             // See if a ref, if not it's a
             match eA.GetRef(n) with
                 | Some r -> r.ValueRef
-                | None -> failwithf "unimplemented"
+                | None -> match getGlobal n with
+                    | None -> failwith <| "Can't find global " + n
+                    | Some nA -> uninitValueRef
+        
+        | Dot (leA, n) ->
+            match leA.PType with
+                | StaticType typeName ->
+                    let nA, ref = getGlobalsRef typeName n
+                    match ref with
+                        | ClassRef cA -> match cA.Item with
+                            | ClassProc _ -> cA.Ref.ValueRef
+                            | ClassVar _ -> failwithf "unimplemented loading from static vars"
+                    
+                | UserType typeName ->
+                    let nA, ref = getGlobalsRef typeName n
+                    match ref with
+                        | ClassRef cA -> match cA.Item with
+                            | ClassProc _ -> cA.Ref.ValueRef
+                
                     
 
-let rec genExpr func bldr (eA:ExprA) =
-    let genE = genExpr func bldr
+let rec genExpr globals func bldr (eA:ExprA) =
+    let genE = genExpr globals func bldr
     match eA.Item with
         | ConstInt (s, i) -> genConstInt (intSizeToTy s) (uint64 i)
         | ConstBool b -> genConstBool b
@@ -149,7 +169,7 @@ let rec genExpr func bldr (eA:ExprA) =
                 | None -> failwithf "Can't find ref %s" n
                 | Some r -> match r.RefType with
                     | LocalRef -> buildLoad bldr r.ValueRef r.Name
-                    //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "") 
+                    //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "")
         | Binop (op, left, right) ->
             let bIcmp cond = (fun bldr -> buildICmp bldr cond)
             let buildFunc = match op with
@@ -189,7 +209,7 @@ let rec genExpr func bldr (eA:ExprA) =
         | DeclVar (name, assignA) ->
             genE assignA
         | Assign (lvalue, eA) ->
-            let addr = genLvalue bldr lvalue
+            let addr = genLvalue globals bldr lvalue
             let e = genE eA
             buildStore bldr e addr
         | Return eA ->
@@ -223,6 +243,8 @@ let rec genExpr func bldr (eA:ExprA) =
         | Seq (eA1, eA2) ->
             genE eA1 |> ignore
             genE eA2
+        | Nop ->
+            uninitValueRef
 
 let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
     match cA.Item with
@@ -249,7 +271,7 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
                 (eA.GetRef(p.Name) |> Option.get).ValueRef <- stackSpace) !params_
 
             // Execute procedure body
-            let expr = genExpr func bldr eA
+            let expr = genExpr globals func bldr eA
 
             ()
 
@@ -258,7 +280,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
     match nA.Item with
         | Class (name, vis, isStruct, cAs) ->
             // Make object allocation ctor func
-            let ctorFuncTy = functionType nA.InstancePointerType [||]
+            let ctorFuncTy = functionType nA.InstancePointerType.Value [||]
             let ctorFunc = addFunction mo (nA.QName + "+ctor") ctorFuncTy
 
             let entry = appendBasicBlock ctorFunc "entry"
@@ -266,11 +288,11 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
             positionBuilderAtEnd bldr entry
 
             // Body for ctor func
-            let this = genMalloc externs bldr nA.InstanceType
+            let this = genMalloc externs bldr nA.InstanceType.Value
             
             let initClassVars (cA:ClassDeclA) = match cA.Item with
                 | ClassVar (name, vis, NotStatic, ptype, eA) ->
-                    let expr = genExpr ctorFunc bldr eA
+                    let expr = genExpr globals ctorFunc bldr eA
                     genClassVarStore bldr this cA.Offset expr |> ignore
                 | _ -> ()
 
@@ -291,15 +313,30 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
 
 
 let genExterns mo =
-    let addExtern name retTy argTys =
-        let funcTy = functionType retTy argTys
+    let addExtern name funcTy = 
         let func = addFunction mo name funcTy
         addFunctionAttr func Attribute.NoUnwindAttribute
         (name, func)
 
+    let addExternC name retTy argTys =
+        addExtern name <| functionType retTy argTys
+
+    let addStrConst name (str:string) =
+        let len = uint32 (str.Length)
+        // Add one to length for null terminator
+        let globTy = arrayType i8 (len + 1u)
+        let glob = addGlobal mo globTy name
+        setLinkage glob Linkage.InternalLinkage
+        setGlobalConstant glob true
+        setInitializer glob (constString str len false)
+        (name, glob)
+        
+
     [
-        addExtern "malloc" i8p [|i32|];
-        addExtern "puts" i32 [|i8p|];
+        addExternC  "malloc" i8p [|i32|];
+        addExternC  "puts" i32 [|i8p|];
+        addExtern   "printf" <| varArgFunctionType i32 [|i8p|];
+        addStrConst "numFmt" "%d"
     ]
     |> Map.ofSeq
    

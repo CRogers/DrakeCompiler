@@ -63,7 +63,7 @@ let compile (text:string) =
             printfn "Exception message: %s" ex.Message
             printfn "Stacktrace: \n%s" ex.StackTrace
             if System.Diagnostics.Debugger.IsAttached then
-                raise ex
+                reraise ()
             else
                 CompilerResult([||], [], moduleCreateWithName "fail")
 

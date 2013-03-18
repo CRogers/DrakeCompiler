@@ -78,6 +78,18 @@ def postCompilerLex():
 def postCompilerLex():
 	return postCompiler(response, request, "asm", "-s -a")
 
+@post('/api/compiler/exe')
+def postCompilerExe():
+	response.content_type = 'text/json'
+	code = request.forms.get('code')
+	llvm = runCompiler(code, "-s -v")
+
+	fd, tmp = tempfile.mkstemp()
+	os.write(fd, llvm)
+	os.close(fd)
+
+	return json.dumps({"exe": run("lli", tmp)})
+
 def postCompiler(response, request, name, switches):
 	response.content_type = 'text/json'
 	code = request.forms.get('code')

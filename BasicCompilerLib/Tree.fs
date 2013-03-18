@@ -169,6 +169,7 @@ and Expr =
     | If of ExprA * ExprA * ExprA
     | While of ExprA * ExprA
     | Seq of ExprA * ExprA
+    | Nop
 
 and ExprA(item:Expr, pos:Pos) =
     inherit AnnotRefs<Ref>(pos)    
@@ -239,18 +240,24 @@ and NamespaceDecl =
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     inherit AnnotRefs<CIRef>(pos)
+
+    let bindPointerType t = Option.bind (fun t -> Some <| pointerType t 0u) t
+
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
 
     member val CtorRef:Ref = Ref(null, Undef, StaticProcRef) with get, set
 
-    member val InstanceType = tyVoid with get, set
-    member val StaticType = tyVoid with get, set
-    member val VTableType = tyVoid with get, set
+    member val InstanceType:option<TypeRef> = None with get, set
+    member val StaticType:option<TypeRef> = None with get, set
+    member val VTableType:option<TypeRef> = None with get, set
 
-    member x.InstancePointerType = pointerType x.InstanceType 0u
-    member x.StaticPointerType = pointerType x.StaticType 0u
-    member x.VTablePointerType = pointerType x.VTableType 0u
+    member x.InstancePointerType:option<TypeRef> = bindPointerType x.InstanceType
+    member x.StaticPointerType:option<TypeRef> = bindPointerType x.StaticType
+    member x.VTablePointerType:option<TypeRef> = bindPointerType x.VTableType
+
+    member val IsBuiltin = false with get, set
+    member val BuiltinCreator = (fun () -> ()) with get, set
 
     member x.IsClass = match x.Item with
         | Class _ -> true
@@ -341,6 +348,7 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | If (test, then_, else_) -> bf [test; then_; else_]
         | While (test, body) -> bf [test; body]
         | Seq (e1A, e2A) -> bf [e1A; e2A]
+        | Nop -> branchFunc exprA []
 
 let foldASTClassDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (cdecl:ClassDeclA) =
     let fAST e = foldASTExpr branchFunc leafFunc e

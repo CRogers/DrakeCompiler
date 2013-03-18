@@ -40,6 +40,7 @@ $ ->
 		post 'parserAnnot'
 		post 'llvm'
 		post 'asm'
+		post 'exe'
 
 	# tabify the output tabs
 	$('#output-tabs a').click (e) ->

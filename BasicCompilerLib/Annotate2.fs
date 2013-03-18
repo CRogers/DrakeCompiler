@@ -13,14 +13,6 @@ process check them
 
 *)
 
-let annotateTypesLvalue (refs:Map<string,Ref>) (eA:ExprA) =
-    eA.AddRefs(refs)
-    eA.PType <- match eA.Item with
-        | Var n -> match eA.GetRef(n) with
-            | Some r -> r.PType
-            | None -> failwithf "lvalue annotate fail"
-
-
 let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
     eA.AddRefs(refs)
     let aTE nextEA = annotateTypesExpr globals localVars eA.Refs nextEA
@@ -52,15 +44,16 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
             match dotEA.PType with
                 // Instance
                 | UserType typeName ->
-                    let nA = Map.find typeName globals
-                    match nA.GetRef(name) with
-                        | None -> failwithf "Cannot access non existent member %s" name
-                        | Some (ClassRef cA)     -> cA.PType
-                        | Some (InterfaceRef iA) -> iA.PType
+                    match getGlobal globals dotEA.Namespace dotEA.Usings typeName with
+                        | None -> failwithf "Cannot find class/interface %s" typeName
+                        | Some nA -> match nA.GetRef(name) with
+                            | None -> failwithf "Cannot access non existent member %s" name
+                            | Some (ClassRef cA)     -> cA.PType
+                            | Some (InterfaceRef iA) -> iA.PType
                 // Static
                 | StaticType typeName ->
-                    match Map.tryFind typeName globals with
-                        | None -> failwithf "Cannot find non-existant class/interface %s" name
+                    match getGlobal globals dotEA.Namespace dotEA.Usings typeName with
+                        | None -> failwithf "Cannot find non-existant class/interface %s" typeName
                         | Some nA ->
                             match nA.GetRef(name) with
                                 | None -> failwithf "Can't access non existant static member %s" name
@@ -68,9 +61,10 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
                                     | Static -> cA.PType
                                     | NotStatic -> failwithf "Can only call *static* classrefs"
                                 | _ -> failwithf "Can only call static class refs"
+                | _ -> failwithf "Can't perform dot operation to get %s" name
 
         | Call (feA, exprAs) ->
-            annotateTypesLvalue eA.Refs feA
+            aTE feA
             Seq.iter aTE exprAs
             let callingArgPtypes = List.map (fun (eA:ExprA) -> eA.PType) exprAs
 
@@ -83,7 +77,7 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
                     failwithf "Can only call function types!"
             
         | Assign (lvalue, innerExprA) ->
-            annotateTypesLvalue eA.Refs lvalue
+            aTE lvalue
             aTE innerExprA
             innerExprA.PType
         | DeclVar (name, assignA) ->
@@ -117,6 +111,8 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
             // Since e2A is lexically below and and in the same scope as e1A, all 
             // e1A's references also appear in e2A
             annotateTypesExpr globals localVars e1A.Refs e2A
+            commonPtype Unit
+        | Nop ->
             commonPtype Unit
 
 let annotateTypesClass globals instanceLevelRefs staticLevelRefs (cA:ClassDeclA) =

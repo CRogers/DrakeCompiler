@@ -80,6 +80,8 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 
 
     Seq.iter annotateCIRefsNamespace program
+    // Annotate CIRefs for builtins too
+    Seq.iter annotateCIRefsNamespace <| Seq.map snd Builtins.builtinsSeq
 
 
 

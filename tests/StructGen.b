@@ -12,5 +12,9 @@ namespace F {
         public bar(c: Int32):Int32 {
             return c + 4;    
         }
+
+        public static main() {
+            return;
+        }
     }
 }

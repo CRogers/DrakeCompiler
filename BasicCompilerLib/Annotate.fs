@@ -31,7 +31,7 @@ let fixNonStaticFunctionParams (nAs:seq<NamespaceDeclA>) =
 
 let annotate (program:Program) =
     let globals = getGlobalRefs program
-    
+
     // Flattern tree to class/interface level
     let flatProg = flatternAST program
 
