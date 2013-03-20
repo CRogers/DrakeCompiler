@@ -32,8 +32,8 @@ let i32one = genConstInt i32 1UL
 let i64one = genConstInt i64 1UL
 
 let genConstBool b = match b with
-    | true -> i1zero
-    | false -> i1one
+    | true -> i1one
+    | false -> i1zero
 
 let intSizeToTy s = match s with
     | 1  -> i1

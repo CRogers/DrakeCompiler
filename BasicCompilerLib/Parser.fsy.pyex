@@ -165,8 +165,6 @@ params:
         { Param(v \$1, \$3) :: \$5 }
 
 expr0:
-    | /* empty */
-        { ea Nop Pos.NilPos }
     | expr1
         { \$1 }
     | expr1 expr0
@@ -197,6 +195,8 @@ expr2:
         { \$1 }
     | LCURLY expr0 RCURLY
         { \$2 }
+    | LCURLY RCURLY
+        { ea Nop Pos.NilPos }
 
 expr3:  
 $for(binop in binops)\
