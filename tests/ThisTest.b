@@ -11,5 +11,15 @@ namespace T {
 		public getX() {
 			return;
 		}
+
+		public static main() {
+			Console.println(0);
+			return;
+		}
 	}
 }
+
+/*<<<
+0
+
+>>>*/

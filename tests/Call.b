@@ -4,15 +4,19 @@ namespace T {
 	class Cat {
 
 		meow() {
+			Console.println(0);
 			return;
 		}
 
         callMeow() {
+        	Console.println(1);
             meow();
+            Console.println(2);
             return;
         }
 
 		static purr() {
+			Console.println(3);
 			return;
 		}
 
@@ -31,15 +35,32 @@ namespace T {
 
 	class Dog {
 		public bark() {
+			Console.println(4);
 			return;
 		}
 
 		public static woof() {
+			Console.println(5);
 			return;
 		}
 
 		public static new():Dog {
+			Console.println(6);
 			return Dog();
 		}
 	}
 }
+
+/*<<<
+3
+1
+0
+2
+0
+5
+6
+4
+6
+4
+
+>>>*/

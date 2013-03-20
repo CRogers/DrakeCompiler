@@ -17,6 +17,12 @@ def run(program, args):
 	output, errors = p.communicate()
 	return output
 
+def writeTemp(text):
+	fd, tmp = tempfile.mkstemp()
+	os.write(fd, text)
+	os.close(fd)
+	return tmp
+
 @get('/')
 def getIndex():
 	with open('web/index.haml') as f:
@@ -84,9 +90,7 @@ def postCompilerExe():
 	code = request.forms.get('code')
 	llvm = runCompiler(code, "-s -v")
 
-	fd, tmp = tempfile.mkstemp()
-	os.write(fd, llvm)
-	os.close(fd)
+	tmp = writeTemp(llvm)
 
 	return json.dumps({"exe": run("lli", tmp)})
 
@@ -98,9 +102,7 @@ def postCompiler(response, request, name, switches):
 
 
 def runCompiler(code, switches):
-	fd, tmp = tempfile.mkstemp()
-	os.write(fd, code)
-	os.close(fd)
+	tmp = writeTemp(code)
 
 	return run(COMPILERLOC, switches + ' ' + tmp)
 

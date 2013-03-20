@@ -12,9 +12,9 @@ namespace T {
 
 		static twoReturnTest(a: Bool):Int32 {
 			if (a)
-				return 0;
+				return 10;
 			else {
-				return 1;
+				return 11;
 			}
 		}
 
@@ -26,7 +26,21 @@ namespace T {
 		}
 
 		public static main(){
+			Console.println(oneReturnTest(true));
+			Console.println(oneReturnTest(false));
+			Console.println(twoReturnTest(true));
+			Console.println(twoReturnTest(false));
+			twoReturnVoidTest(true);
+			twoReturnVoidTest(false);
 			return;
 		}
 	}
 }
+
+/*<<<
+0
+1
+10
+11
+
+>>>*/

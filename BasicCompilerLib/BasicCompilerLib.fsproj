@@ -60,10 +60,10 @@
     <None Include="Parser.fsy" />
     <Compile Include="Lexer.fs" />
     <None Include="Lexer.fsl" />
-    <Compile Include="Gen.fs" />
-    <Compile Include="BuiltinGen.fs" />
     <Compile Include="Builtins.fs" />
     <None Include="Builtins.fs.pyex" />
+    <Compile Include="BuiltinGen.fs" />
+    <Compile Include="Gen.fs" />
     <Compile Include="Check.fs" />
     <Compile Include="Annotate1.fs" />
     <Compile Include="Annotate2.fs" />

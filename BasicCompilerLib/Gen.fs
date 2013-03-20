@@ -374,7 +374,7 @@ let genExterns mo =
         addExternC  "malloc" i8p [|i32|];
         addExternC  "puts" i32 [|i8p|];
         addExtern   "printf" <| varArgFunctionType i32 [|i8p|];
-        addStrConst "numFmt" "%d"
+        addStrConst "numFmt" "%d\n"
     ]
     |> Map.ofSeq
    
@@ -407,6 +407,9 @@ let gen (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 
     // Define some important externs
     let externs = genExterns mo
+
+    // Build the builtin stuff
+    BuiltinGen.genConsole externs mo <| Map.find "System::Console" Builtins.builtinsMap
 
     // Build the structures required to store the information
     genClassStructures globals context mo program
