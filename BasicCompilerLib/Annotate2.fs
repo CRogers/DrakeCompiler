@@ -27,7 +27,7 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
                 | None ->
                     // Look in globals for it
                     match getGlobal globals eA.Namespace eA.Usings n with
-                        | Some nA -> StaticType nA.QName
+                        | Some nA -> StaticType nA
                         | None -> failwithf "Can't find static user type %s" n
         | Binop (op, l, r) ->
             aTE l
@@ -51,16 +51,13 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
                             | Some (ClassRef cA)     -> cA.PType
                             | Some (InterfaceRef iA) -> iA.PType
                 // Static
-                | StaticType typeName ->
-                    match getGlobal globals dotEA.Namespace dotEA.Usings typeName with
-                        | None -> failwithf "Cannot find non-existant class/interface %s" typeName
-                        | Some nA ->
-                            match nA.GetRef(name) with
-                                | None -> failwithf "Can't access non existant static member %s" name
-                                | Some (ClassRef cA) -> match cA.IsStatic with
-                                    | Static -> cA.PType
-                                    | NotStatic -> failwithf "Can only call *static* classrefs"
-                                | _ -> failwithf "Can only call static class refs"
+                | StaticType nA ->
+                    match nA.GetRef(name) with
+                        | None -> failwithf "Can't access non existant static member %s" name
+                        | Some (ClassRef cA) -> match cA.IsStatic with
+                            | Static -> cA.PType
+                            | NotStatic -> failwithf "Can only call *static* classrefs"
+                        | _ -> failwithf "Can only call static class refs"
                 | _ -> failwithf "Can't perform dot operation to get %s" name
 
         | Call (feA, exprAs) ->

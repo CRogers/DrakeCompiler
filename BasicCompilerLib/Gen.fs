@@ -24,6 +24,10 @@ open LLVM.Generated.BitWriter
 
 *)
 
+let getNumFunctionParams funcvr =
+    getParams funcvr
+    |> Array.length
+
 let getInstPointTy (globals:GlobalStore) ptype =
     let nA = Map.find (match ptype with UserType s -> s) globals
     match nA.IsStruct with
@@ -46,7 +50,7 @@ let genClassVarLoad bldr this offset =
 let getLLVMType (globals:GlobalStore) ptype =
     match ptype with
         | UserType name -> (Map.find name globals).InstanceType.Value
-        | StaticType name -> (Map.find name globals).StaticType.Value
+        | StaticType nA -> nA.StaticType.Value
         | _ -> failwithf "Can't find llvm type for %s" <| ptype.ToString()
 
 let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDeclA>) =
@@ -144,10 +148,9 @@ let genLvalue (globals:GlobalStore) bldr (eA:ExprA) =
         
         | Dot (leA, n) ->
             match leA.PType with
-                | StaticType typeName ->
-                    let nA, ref = getGlobalsRef typeName n
-                    match ref with
-                        | ClassRef cA -> match cA.Item with
+                | StaticType nA ->
+                    match nA.GetRef(n) with
+                        | Some (ClassRef cA) -> match cA.Item with
                             | ClassProc _ -> cA.Ref.ValueRef
                             | ClassVar _ -> failwithf "unimplemented loading from static vars"
                     
@@ -162,6 +165,7 @@ let genLvalue (globals:GlobalStore) bldr (eA:ExprA) =
 let rec genExpr globals func bldr (eA:ExprA) =
     let genE = genExpr globals func bldr
     match eA.Item with
+        | ConstUnit -> failwithf "unimplemented 98235674"
         | ConstInt (s, i) -> genConstInt (intSizeToTy s) (uint64 i)
         | ConstBool b -> genConstBool b
         | Var n ->
@@ -169,7 +173,20 @@ let rec genExpr globals func bldr (eA:ExprA) =
                 | None -> failwithf "Can't find ref %s" n
                 | Some r -> match r.RefType with
                     | LocalRef -> buildLoad bldr r.ValueRef r.Name
+                    | StaticProcRef -> r.ValueRef
                     //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "")
+        | Dot (leA, n) ->
+            // Check to see if the LHS is a StaticType, if so just return the correct thing
+            match leA.PType with
+                | StaticType nA -> failwithf "unimplemented 2152357238"
+                | UserType typeName ->
+                    let this = genE leA
+                    let nA:NamespaceDeclA = Map.find typeName globals
+                    match nA.GetRef(n).Value with
+                        | ClassRef cA -> match cA.Item with
+                            | ClassVar _ -> genClassVarLoad bldr this cA.Offset
+                | _ -> failwithf "Can only perform dot operation on static or instance type"
+
         | Binop (op, left, right) ->
             let bIcmp cond = (fun bldr -> buildICmp bldr cond)
             let buildFunc = match op with
@@ -187,25 +204,46 @@ let rec genExpr globals func bldr (eA:ExprA) =
             buildFunc bldr (genE left) (genE right) ""
         | Call (eA, args) ->
             let argEs = List.map genE args
-            match eA.Item with
-                | Var n ->
-                    let currClass = Option.get eA.NamespaceDecl
-                    let ref = eA.GetRef(n)
-                    let funcvr = match ref with
-                        | None -> failwithf "Can't find correct thing to call"
-                        | Some r -> match r.RefType with
-                            | InstanceProcRef -> r.ValueRef
-                            | StaticProcRef -> r.ValueRef
-                            | _ -> failwithf "Can only call a function"
 
-                    // Adjust instance method call with "this" arg
-                    let fixedArgs = match ref.Value.RefType with
+            let funcvr, fixedArgs = match eA.Item with 
+                | Var n ->
+                    let ref = eA.GetRef(n).Value
+                    let funcvr = match ref.RefType with
+                        | InstanceProcRef | StaticProcRef -> ref.ValueRef
+                        | _ -> failwith "Can only call a method"
+
+                    let fixedArgs = match ref.RefType with
                         | StaticProcRef -> argEs
                         | InstanceProcRef ->
                             let thisLoc = eA.GetRef("this").Value.ValueRef
                             buildLoad bldr thisLoc "this" :: argEs
 
-                    buildCall bldr funcvr (Array.ofList fixedArgs) ""
+                    (funcvr, fixedArgs)
+
+                | Dot (leA, n) ->
+                    let getProcVR (nA:NamespaceDeclA) = match nA.GetRef(n).Value with
+                        | ClassRef cA -> match cA.Item with
+                            | ClassProc _ -> (cA.Ref.ValueRef, cA.IsStatic)
+                            | _ -> failwith "Can only call methods"
+                        | _ -> failwithf "unimplemented 11746238462194"
+
+                    match leA.PType with
+                        | StaticType nA -> 
+                            let funcvr, _ = getProcVR nA
+                            (funcvr, argEs)
+
+                        | UserType typeName ->
+                            let nA = Map.find typeName globals
+                            let funcvr, isStatic = getProcVR nA
+                            let fixedArgs = match isStatic with
+                                | Static -> argEs
+                                | NotStatic ->
+                                    // Put this on the front
+                                    genE leA :: argEs
+                            (funcvr, fixedArgs)
+
+            buildCall bldr funcvr (Array.ofList fixedArgs) ""
+
         | DeclVar (name, assignA) ->
             genE assignA
         | Assign (lvalue, eA) ->

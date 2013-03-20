@@ -21,81 +21,6 @@ type RefType =
 with
     override x.ToString() = fmt x
 
-type PType = 
-    | Undef
-    | UserType of string
-    | StaticType of string
-    | PFunc of (*arg types*) list<PType> * (*return type*) PType
-    | RefType of Ref
-    with
-    override x.ToString() = fmt x
-
-and Ref(name: string, ptype:PType, reftype:RefType) =
-    member x.Name = name
-    member val PType = ptype with get, set
-    member val RefType = reftype
-    member val ValueRef = uninitValueRef with get, set
-    member x.IsUninitialised = isUninitValueRef x.ValueRef
-
-    override x.ToString() = sprintf "Ref(%s, %s, %s)" x.Name (x.PType.ToString()) (x.RefType.ToString())
-
-type CommonPtype =
-    | Unit
-    | Int of int
-    | Bool
-    | String
-
-type Pos(startPos:Position, endPos:Position) =
-    member x.StartPos = startPos
-    member x.EndPos = endPos
-    override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
-    static member NilPosition = {pos_fname= ""; pos_lnum = 0; pos_bol = 0; pos_cnum = 0}
-    static member NilPos = Pos(Pos.NilPosition, Pos.NilPosition)
-
-type Param(name: string, ptype: PType) =
-    member x.Name = name
-    member val PType = ptype with get, set
-    override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
-
-
-
-
-let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
-    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
-        then ""
-        else "." + String.Join(".", extraNames)
-
-let isQualifiedName (name:string) = name.Contains("::")
-
-let paramsReturnTypeToPtype (params_:list<Param>) returnType =
-    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
-    PFunc (ptypeParams, returnType)
-
-let cpPrefix x = "System::" + x 
-
-let commonPtype x = UserType (cpPrefix <| match x with
-    | Unit   -> "Unit"
-    | Int i  -> "Int" + i.ToString()
-    | Bool   -> "Bool"
-    | String -> "String")
-
-
-let getGlobal globals namespace_ (usings:seq<string>) name =
-    match Map.tryFind name globals with
-        | Some nA -> Some nA
-        | None ->
-            let namespaceLocal = namespace_ + "::" + name
-            match Map.tryFind namespaceLocal globals with
-                | Some nA -> Some nA
-                | None ->
-                    // Cycle through usings
-                    let us = Seq.map (fun using ->
-                        Map.tryFind (using + "::" + name) globals) usings
-                    match Seq.tryFind Option.isSome us with
-                        | Some snA -> snA
-                        | None -> None
-
-
 type Name = string
 
 type IsStatic =
@@ -114,10 +39,41 @@ type Visibility =
     | Private
     | Public
 
-type IVisibility =
-    abstract Visibility : Visibility
 
-type CIRef = 
+type PType = 
+    | Undef
+    | UserType of string
+    | StaticType of NamespaceDeclA
+    | PFunc of (*arg types*) list<PType> * (*return type*) PType
+    | RefType of Ref
+    with
+    override x.ToString() = match x with
+        | StaticType nA -> nA.QName
+        | _ -> fmt x
+
+and Ref(name: string, ptype:PType, reftype:RefType) =
+    member x.Name = name
+    member val PType = ptype with get, set
+    member val RefType = reftype
+    member val ValueRef = uninitValueRef with get, set
+    member x.IsUninitialised = isUninitValueRef x.ValueRef
+
+    override x.ToString() = sprintf "Ref(%s, %s, %s)" x.Name (x.PType.ToString()) (x.RefType.ToString())
+
+and Pos(startPos:Position, endPos:Position) =
+    member x.StartPos = startPos
+    member x.EndPos = endPos
+    override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
+    static member NilPosition = {pos_fname= ""; pos_lnum = 0; pos_bol = 0; pos_cnum = 0}
+    static member NilPos = Pos(Pos.NilPosition, Pos.NilPosition)
+
+and Param(name: string, ptype: PType) =
+    member x.Name = name
+    member val PType = ptype with get, set
+    override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
+
+
+and CIRef = 
     | ClassRef of ClassDeclA
     | InterfaceRef of InterfaceDeclA
 with
@@ -204,7 +160,9 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
-        | ClassProc (_, _, _, params_, returnType, _) -> paramsReturnTypeToPtype !params_ !returnType
+        | ClassProc (_, _, _, params_, returnType, _) ->
+            let ptypeParams = List.map (fun (p:Param) -> p.PType) !params_
+            PFunc (ptypeParams, !returnType)
 
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _, _) -> vis
@@ -291,6 +249,49 @@ type TopDeclA(item:TopDecl, pos:Pos) =
 
 type CompilationUnit = list<TopDeclA>
 type Program = list<CompilationUnit>
+
+
+let paramsReturnTypeToPtype (params_:list<Param>) returnType =
+    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
+    PFunc (ptypeParams, returnType)
+
+let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
+    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
+        then ""
+        else "." + String.Join(".", extraNames)
+
+let isQualifiedName (name:string) = name.Contains("::")
+
+let cpPrefix x = "System::" + x 
+
+type CommonPtype =
+    | Unit
+    | Int of int
+    | Bool
+    | String
+
+let commonPtype x = UserType (cpPrefix <| match x with
+    | Unit   -> "Unit"
+    | Int i  -> "Int" + i.ToString()
+    | Bool   -> "Bool"
+    | String -> "String")
+
+
+let getGlobal globals namespace_ (usings:seq<string>) name =
+    match Map.tryFind name globals with
+        | Some nA -> Some nA
+        | None ->
+            let namespaceLocal = namespace_ + "::" + name
+            match Map.tryFind namespaceLocal globals with
+                | Some nA -> Some nA
+                | None ->
+                    // Cycle through usings
+                    let us = Seq.map (fun using ->
+                        Map.tryFind (using + "::" + name) globals) usings
+                    match Seq.tryFind Option.isSome us with
+                        | Some snA -> snA
+                        | None -> None
+
 
 let getNamespaceDecls (program:Program) =
     Util.concatMap (Seq.map (fun (tdA:TopDeclA) -> match tdA.Item with Namespace (_, nAs) -> Some nAs | _ -> None)) program
