@@ -37,6 +37,9 @@ let eaa item (leftA:Annot) (rightA:Annot) = ebb item leftA.Pos rightA.Pos
 
 let ea item pos = ExprA(item, pos)
 
+
+let nop = ea Nop Pos.NilPos
+
 %}
 
 $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','GtEq','Eq'])
@@ -185,6 +188,8 @@ expr1:
         { ea ReturnVoid \$1  }
     | IF LPAR expr3 RPAR expr1 ELSE expr1
         { eba (If (\$3, \$5, \$7)) \$1 \$5 }
+    | IF LPAR expr3 RPAR expr1
+        { eba (If (\$3, \$5, nop)) \$1 \$5 }
     | WHILE LPAR expr3 RPAR expr2
         { ebb (While (\$3, \$5)) \$1 \$4 }
     | expr2 
@@ -196,7 +201,7 @@ expr2:
     | LCURLY expr0 RCURLY
         { \$2 }
     | LCURLY RCURLY
-        { ea Nop Pos.NilPos }
+        { nop }
 
 expr3:  
 $for(binop in binops)\
