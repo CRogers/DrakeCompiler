@@ -62,7 +62,12 @@ def getScript(name=''):
 @get('/api/tests')
 def getTests():
 	response.content_type = 'text/json'
-	return json.dumps(os.listdir(TESTSDIR))
+	cwd = os.getcwd()
+	os.chdir(TESTSDIR)
+	ret = json.dumps(glob.glob('*.b'))
+	os.chdir(cwd)
+
+	return ret
 
 @get('/api/tests/<name>')
 def getTest(name=''):
