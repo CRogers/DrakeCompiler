@@ -25,17 +25,25 @@
 					%h2 Output
 					%ul#output-tabs.nav.nav-tabs
 						%li
-							%a{href: "#lexer"} Lexer
+							%a{href: "#lexer"} Lex
 						%li
-							%a{href: "#parser"} Parser
+							%a{href: "#parser"} Parse
 						%li
-							%a{href: "#parserAnnot"} Parser (Annotated)	
+							%a{href: "#parserAnnot"} Parse (A)	
 						%li.active
 							%a{href: "#llvm"} LLVM
 						%li
-							%a{href: "#asm"} Assembly
+							%a{href: "#asm"} Asm
 						%li
-							%a{href: "#exe"} Execution
+							%a{href: "#exe"} Exe
+						%li
+							%a{href: "#cfg"} Cfg
+						%li
+							%a{href: "#dom"} Dom
+						%li
+							%a{href: "#reg"} Reg
+						%li
+							%a{href: "#cg"} CG
 					.tab-content
 						#lexer.tab-pane
 							%pre#lexer-output.output
@@ -49,6 +57,14 @@
 							%pre#asm-output.output
 						#exe.tab-pane
 							%pre#exe-output.output
+						#cfg.tab-pane
+							.output
+						#dom.tab-pane
+							.output
+						#reg.tab-pane
+							.output
+						#cg.tab-pane
+							.output
 
 		%script{src: "/scripts/jquery-1.7.1.js"}
 		%script{src: "/scripts/bootstrap.js"}

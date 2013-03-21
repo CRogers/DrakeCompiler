@@ -9,7 +9,7 @@ let genConsole externs mo (nA:NamespaceDeclA) =
     let printf = Map.find "printf" externs
     let numFmt = Map.find "numFmt" externs
     
-    let println = addFunction mo "Console::println" <| functionType tyVoid [|i32|]
+    let println = addFunction mo "Console__println" <| functionType tyVoid [|i32|]
     let entry = appendBasicBlock println "entry"
     use bldr = new Builder()
     positionBuilderAtEnd bldr entry

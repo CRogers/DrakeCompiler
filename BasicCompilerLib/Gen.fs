@@ -24,6 +24,8 @@ open LLVM.Generated.BitWriter
 
 *)
 
+let changeSRO (text:string) = text.Replace("::", "__");
+
 let getNumFunctionParams funcvr =
     getParams funcvr
     |> Array.length
@@ -58,9 +60,9 @@ let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDe
     let createInitStructures (nA:NamespaceDeclA) =
         match nA.Item with
             | Class (name, vis, isStruct, cAs) ->
-                nA.InstanceType <- Some (structCreateNamed context nA.QName)
-                nA.StaticType <- Some (structCreateNamed context <| nA.QName + "+Static")
-                nA.VTableType <- Some (structCreateNamed context <| nA.QName + "+VTable")
+                nA.InstanceType <- Some (structCreateNamed context <| changeSRO nA.QName)
+                nA.StaticType <- Some (structCreateNamed context <| changeSRO nA.QName + "+Static")
+                nA.VTableType <- Some (structCreateNamed context <| changeSRO nA.QName + "+VTable")
             | _ -> ()
 
 
@@ -105,7 +107,7 @@ let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDe
                 let retTy = getInstPointTy globals !retType
                 let paramsTy = Seq.map (fun (p:Param) -> getInstPointTy globals p.PType) !params_ |> Seq.toArray
                 let funcTy = functionType retTy paramsTy
-                let func = addFunction mo cA.QName funcTy
+                let func = addFunction mo (changeSRO cA.QName) funcTy
 
                 // Set func value ref for class decl
                 cA.Ref.ValueRef <- func

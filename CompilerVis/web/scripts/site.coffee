@@ -24,23 +24,36 @@ $ ->
 					loadTest $(this).text()
 
 	compile = (code) ->
-		post = (item) ->
+		post = (item, success) ->
 			$.ajax
 				type: 'POST'
 				data:
 					code: code
 				dataType: 'json'
 				url: modifyingQS "/api/compiler/#{item}"
-				success: (data) ->
+				success: success
+		
+		postS = (item) ->
+			post item, (data) ->
 					for k, v of data
 						$('#'+k+'-output').text v
 
-		post 'lexer'
-		post 'parser'
-		post 'parserAnnot'
-		post 'llvm'
-		post 'asm'
-		post 'exe'
+		postS 'lexer'
+		postS 'parser'
+		postS 'parserAnnot'
+		postS 'llvm'
+		postS 'asm'
+		postS 'exe'
+
+		post 'dots', (data) ->
+			addHTML = (name) ->
+				section = $('#' + name + ' .output').empty()
+				for x in data[name]
+					section.append("<img src='#{x}' /><br><br>")
+			addHTML 'cfg'
+			addHTML 'dom'
+			addHTML 'reg'
+			addHTML 'cg'
 
 	# tabify the output tabs
 	$('#output-tabs a').click (e) ->

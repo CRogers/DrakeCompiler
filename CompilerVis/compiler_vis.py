@@ -1,5 +1,5 @@
 import subprocess as sub
-import json, os
+import json, os, shutil
 import bottle
 from bottle import get, post, static_file, abort, request, response
 from hamlpy import hamlpy
@@ -7,6 +7,8 @@ from scss import parser
 import re
 import coffeescript
 import tempfile
+import glob
+import base64
 
 TESTSDIR = '../tests/'
 COMPILERLOC = "../BasicCompiler/bin/Debug/BasicCompiler.exe"
@@ -22,6 +24,9 @@ def writeTemp(text):
 	os.write(fd, text)
 	os.close(fd)
 	return tmp
+
+def makeTempDir():
+	return tempfile.mkdtemp()
 
 @get('/')
 def getIndex():
@@ -91,8 +96,45 @@ def postCompilerExe():
 	llvm = runCompiler(code, "-s -v")
 
 	tmp = writeTemp(llvm)
+	ret = json.dumps({"exe": run("lli", tmp)})
+	os.remove(tmp)
 
-	return json.dumps({"exe": run("lli", tmp)})
+	return ret
+
+def dotFiles(optionname, start):
+	run('opt', '-dot-' + optionname + ' llvm.bc')
+
+	pngs = []
+	for f in glob.glob(start + '*.dot'):
+		pngs.append('data:image/png;base64,' + base64.b64encode(run('dot', ' -Tpng ' + f)))
+
+	return pngs
+
+@post('/api/compiler/dots')
+def postCompilerCfg():
+	response.content_type = 'text/json'
+	code = request.forms.get('code')
+	llvm = runCompiler(code, "-s -v")
+	tmpDir = makeTempDir()
+	print tmpDir
+
+	owd = os.getcwd()
+	os.chdir(tmpDir)
+
+	with open('llvm.bc', 'w') as f:
+		f.write(llvm)
+
+	cfg = dotFiles('cfg', 'cfg')
+	dom = dotFiles('dom', 'dom')
+	reg = dotFiles('regions', 'reg')
+	cg  = dotFiles('callgraph', 'callgraph')
+	
+	os.chdir(owd)
+	shutil.rmtree(tmpDir)
+
+	return json.dumps({'cfg': cfg, 'dom': dom, 'reg': reg, 'cg': cg})
+
+
 
 def postCompiler(response, request, name, switches):
 	response.content_type = 'text/json'
@@ -103,7 +145,9 @@ def postCompiler(response, request, name, switches):
 
 def runCompiler(code, switches):
 	tmp = writeTemp(code)
+	ret = run(COMPILERLOC, switches + ' ' + tmp)
+	os.remove(tmp)
 
-	return run(COMPILERLOC, switches + ' ' + tmp)
+	return ret
 
 bottle.run(host='localhost', port='8900')

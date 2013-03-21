@@ -53,11 +53,12 @@ def processTest(path):
 		print Fore.GREEN + "Success" + Fore.RESET
 	else:
 		print Fore.RED + "Fail"
+		print Fore.MAGENTA + "------------------------------------------------------------------------------"
 		print Fore.CYAN + output
 		print ans
 		print printHex(output)
-		print printHex(ans) + Fore.RESET
+		print printHex(ans)
+		print Fore.MAGENTA + "------------------------------------------------------------------------------" + Fore.RESET
 
 for x in sys.argv[1:]:
 	processTest(x)
-	print "\n------------------------------------------------------------------------------\n"
