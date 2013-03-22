@@ -33,12 +33,15 @@ let ident = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 let white = [' ' '\t']
 let endline = '\r'? '\n'
 let comment = '/' '/' [^ '\r' '\n']*
-let mcomment = '/' '*'  _*? '*' '/'
 
-rule token = parse
+rule comment = parse
+    | "*/"                  { token lexbuf }
+    | _                     { comment lexbuf }
+
+and token = parse
     | white+                { token lexbuf }
     | comment               { token lexbuf }
-    | mcomment              { token lexbuf }
+    | "/*"                  { comment lexbuf }
     | endline               { newline lexbuf; token lexbuf }
     | eof                   { EOF (pos lexbuf) }
     | integer               { INT32 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
