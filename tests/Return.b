@@ -1,7 +1,7 @@
 using System;
 
 namespace T {
-	class IfTest {
+	class ReturnTest {
 		static oneReturnTest(a: Bool):Int32 {
 			if (a)
 				return 0;
@@ -28,10 +28,10 @@ namespace T {
 		public static main(){
 			Console.println(oneReturnTest(true));
 			Console.println(oneReturnTest(false));
-			Console.println(twoReturnTest(true));/*FFF
+			Console.println(twoReturnTest(true));
 			Console.println(twoReturnTest(false));
 			twoReturnVoidTest(true);
-			twoReturnVoidTest(false);*/
+			twoReturnVoidTest(false);
 		}
 	}
 }

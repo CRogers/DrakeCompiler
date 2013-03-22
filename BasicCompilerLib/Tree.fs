@@ -317,9 +317,14 @@ let isReturnTyped (eA:ExprA) = match eA.Item with
     | Return _ -> true
     | _ -> false
 
+type FoundInSeq<'a> =
+    | NotFound
+    | FoundInMiddle of 'a * 'a
+    | FoundAtEnd of 'a
+
 let rec findInSeq pred (eA:ExprA) = match eA.Item with
-    | Seq (e1A, e2A) -> if pred !e1A then Some !e1A else findInSeq pred !e2A
-    | _ -> if pred eA then Some eA else None
+    | Seq (e1A, e2A) -> if pred !e1A then FoundInMiddle (eA, !e1A) else findInSeq pred !e2A
+    | _ -> if pred eA then FoundAtEnd eA else NotFound
 
 let rec lastInSeq (expr:ExprA) = match expr.Item with
     | Seq (e1A, e2A) -> lastInSeq !e2A

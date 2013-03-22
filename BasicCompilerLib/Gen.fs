@@ -275,7 +275,10 @@ let rec genExpr globals func bldr (eA:ExprA) =
             genE else_ |> ignore
             if not elseRet then buildBr bldr ifcont |> ignore
             // Cont
-            positionBuilderAtEnd bldr ifcont
+            if thenRet && elseRet then
+                removeBasicBlockFromParent ifcont
+            else
+                positionBuilderAtEnd bldr ifcont
             uninitValueRef
         | Seq (eA1, eA2) ->
             genE !eA1 |> ignore
