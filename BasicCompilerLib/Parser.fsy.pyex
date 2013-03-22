@@ -39,6 +39,7 @@ let ea item pos = ExprA(item, pos)
 
 
 let nop = ea Nop Pos.NilPos
+let seqnop eA = ea (Seq (ref nop, ref eA)) Pos.NilPos
 
 %}
 
@@ -132,8 +133,9 @@ classDecls:
         { [] }
     | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
+    /* add in a seq nop so we can chnage things around in the exprA easier later on */
     | visibility static_ IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
-        { cba (ClassProc (v \$3, \$1, \$2, ref \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
+        { cba (ClassProc (v \$3, \$1, \$2, ref \$5, ref \$7, seqnop \$9)) (p \$3) \$9 :: \$11 }
 
 possibleType:
     | /* empty */
@@ -171,7 +173,7 @@ expr0:
     | expr1
         { \$1 }
     | expr1 expr0
-        { eaa (Seq (\$1, \$2)) \$1 \$2 }
+        { eaa (Seq (ref \$1, ref \$2)) \$1 \$2 }
 
 expr1:
     | expr4 EQUALS expr3 SEMI

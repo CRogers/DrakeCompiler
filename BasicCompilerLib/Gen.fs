@@ -275,14 +275,11 @@ let rec genExpr globals func bldr (eA:ExprA) =
             genE else_ |> ignore
             if not elseRet then buildBr bldr ifcont |> ignore
             // Cont
-            if thenRet && elseRet then
-                removeBasicBlockFromParent ifcont
-            else
-                positionBuilderAtEnd bldr ifcont
+            positionBuilderAtEnd bldr ifcont
             uninitValueRef
         | Seq (eA1, eA2) ->
-            genE eA1 |> ignore
-            genE eA2
+            genE !eA1 |> ignore
+            genE !eA2
         | Nop ->
             uninitValueRef
 
@@ -321,7 +318,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
         | Class (name, vis, isStruct, cAs) ->
             // Make object allocation ctor func
             let ctorFuncTy = functionType nA.InstancePointerType.Value [||]
-            let ctorFunc = addFunction mo (nA.QName + "+ctor") ctorFuncTy
+            let ctorFunc = addFunction mo (changeSRO nA.QName + "+ctor") ctorFuncTy
 
             let entry = appendBasicBlock ctorFunc "entry"
             use bldr = new Builder();

@@ -28,11 +28,10 @@ namespace T {
 		public static main(){
 			Console.println(oneReturnTest(true));
 			Console.println(oneReturnTest(false));
-			Console.println(twoReturnTest(true));
+			Console.println(twoReturnTest(true));/*FFF
 			Console.println(twoReturnTest(false));
 			twoReturnVoidTest(true);
-			twoReturnVoidTest(false);
-			return;
+			twoReturnVoidTest(false);*/
 		}
 	}
 }

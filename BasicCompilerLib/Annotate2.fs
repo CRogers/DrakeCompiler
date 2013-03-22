@@ -104,10 +104,10 @@ let rec annotateTypesExpr (globals:GlobalStore) (localVars:List<Ref>) (refs:Map<
             aTE body
             commonPtype Unit
         | Seq (e1A, e2A) ->
-            aTE e1A
+            aTE !e1A
             // Since e2A is lexically below and and in the same scope as e1A, all 
             // e1A's references also appear in e2A
-            annotateTypesExpr globals localVars e1A.Refs e2A
+            annotateTypesExpr globals localVars (!e1A).Refs !e2A
             commonPtype Unit
         | Nop ->
             commonPtype Unit

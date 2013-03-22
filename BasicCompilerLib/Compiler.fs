@@ -55,7 +55,8 @@ let compile (text:string) =
     try
         let textLines = text.Split('\n')
         let parsed = [parse textLines]
-        let (globals, annotated) = Annotate.annotate parsed
+        let globals, annotated = Annotate.annotate parsed
+        Check.check annotated
         let llvmModule = Gen.gen globals annotated
         CompilerResult(textLines, [], llvmModule)
     with

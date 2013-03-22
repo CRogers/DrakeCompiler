@@ -5,19 +5,16 @@ namespace T {
 
 		meow() {
 			Console.println(0);
-			return;
 		}
 
         callMeow() {
         	Console.println(1);
             meow();
             Console.println(2);
-            return;
         }
 
 		static purr() {
 			Console.println(3);
-			return;
 		}
 
 		public static main() {			
@@ -29,19 +26,16 @@ namespace T {
 			                    // Dog.new() :: UserType Dog, Dog.new().bark :: PFunc ([], UserType Unit)
 			var d = Dog.new();
 			d.bark();           // d :: UserType Dog, d.bark :: PFunc ([], UserType Unit)
-            return;
 		}
 	}
 
 	class Dog {
 		public bark() {
 			Console.println(4);
-			return;
 		}
 
 		public static woof() {
 			Console.println(5);
-			return;
 		}
 
 		public static new():Dog {

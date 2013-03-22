@@ -124,7 +124,7 @@ and Expr =
     | ReturnVoid
     | If of ExprA * ExprA * ExprA
     | While of ExprA * ExprA
-    | Seq of ExprA * ExprA
+    | Seq of ExprA ref * ExprA ref
     | Nop
 
 and ExprA(item:Expr, pos:Pos) =
@@ -309,9 +309,29 @@ let isReturn (eA:ExprA) = match eA.Item with
     | ReturnVoid -> true
     | _ -> false
 
+let isReturnVoid (eA:ExprA) = match eA.Item with
+    | ReturnVoid -> true
+    | _ -> false
+
+let isReturnTyped (eA:ExprA) = match eA.Item with
+    | Return _ -> true
+    | _ -> false
+
+let rec findInSeq pred (eA:ExprA) = match eA.Item with
+    | Seq (e1A, e2A) -> if pred !e1A then Some !e1A else findInSeq pred !e2A
+    | _ -> if pred eA then Some eA else None
+
 let rec lastInSeq (expr:ExprA) = match expr.Item with
-    | Seq (e1A, e2A) -> lastInSeq e2A
+    | Seq (e1A, e2A) -> lastInSeq !e2A
     | _ -> expr
+
+let rec lastInSeqAndPrev (eA:ExprA) = 
+    let rec lisap last (eA:ExprA) =        
+        match eA.Item with
+            | Seq (e1A, e2A) -> lisap (Some eA) !e2A
+            | _ -> (last, eA)
+    
+    lisap None eA
 
 let isLastInSeqRet eA = isReturn <| lastInSeq eA
 
@@ -348,7 +368,7 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | ReturnVoid -> bf []
         | If (test, then_, else_) -> bf [test; then_; else_]
         | While (test, body) -> bf [test; body]
-        | Seq (e1A, e2A) -> bf [e1A; e2A]
+        | Seq (e1A, e2A) -> bf [!e1A; !e2A]
         | Nop -> branchFunc exprA []
 
 let foldASTClassDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (cdecl:ClassDeclA) =
