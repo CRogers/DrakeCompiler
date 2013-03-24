@@ -79,6 +79,7 @@
     <PreBuildEvent>python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Parser.fsy.pyex" &gt;"$(ProjectDir)\Parser.fsy"
 python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Lexer.fsl.pyex" &gt;"$(ProjectDir)\Lexer.fsl"
 python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Builtins.fs.pyex" &gt;"$(ProjectDir)\Builtins.fs"
+python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\stdlib.b.pyex" &gt;"$(ProjectDir)\stdlib.b"
 "$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
 "$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" -v "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser
 </PreBuildEvent>

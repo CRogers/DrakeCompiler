@@ -13,3 +13,4 @@ _ReSharper*
 *.pyc
 *.user
 *.fsyacc*
+stdlib.b
