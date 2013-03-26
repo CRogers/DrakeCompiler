@@ -55,72 +55,72 @@ let getLLVMType (globals:GlobalStore) ptype =
         | StaticType nA -> nA.StaticType.Value
         | _ -> failwithf "Can't find llvm type for %s" <| ptype.ToString()
 
-let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDeclA>) =
-    
-    let createInitStructures (nA:NamespaceDeclA) =
-        match nA.Item with
-            | Class (name, vis, isStruct, cAs) ->
-                nA.InstanceType <- Some (structCreateNamed context <| changeSRO nA.QName)
-                nA.StaticType <- Some (structCreateNamed context <| changeSRO nA.QName + "+Static")
-                nA.VTableType <- Some (structCreateNamed context <| changeSRO nA.QName + "+VTable")
-            | _ -> ()
+   
+let createInitStructures context (nA:NamespaceDeclA) =
+    match nA.Item with
+        | Class (name, vis, isStruct, cAs) ->
+            nA.InstanceType <- Some (structCreateNamed context <| changeSRO nA.QName)
+            nA.StaticType <- Some (structCreateNamed context <| changeSRO nA.QName + "+Static")
+            nA.VTableType <- Some (structCreateNamed context <| changeSRO nA.QName + "+VTable")
+        | _ -> ()
 
 
-    let genClassStructure (nA:NamespaceDeclA) =
-        match nA.Item with
-            | Class (name, vis, isStruct, cAs) ->
-                let getLLVMVarTypes isStatic =
-                    let varTypesOptions =
-                        Seq.mapi (fun i (cA:ClassDeclA) ->
-                            match cA.Item with
-                                | ClassVar (name, vis, iS, ptype, eA) when iS = isStatic ->
-                                    // i+1 as we have to include the vtable pointer/ptr to class name
-                                    cA.Offset <- i+1
-                                    Some <| getLLVMType globals !ptype
-                                | _ -> None) cAs
+let genClassStructure globals (nA:NamespaceDeclA) =
+    match nA.Item with
+        | Class (name, vis, isStruct, cAs) ->
+            let getLLVMVarTypes isStatic =
+                let varTypesOptions =
+                    Seq.mapi (fun i (cA:ClassDeclA) ->
+                        match cA.Item with
+                            | ClassVar (name, vis, iS, ptype, eA) when iS = isStatic ->
+                                // i+1 as we have to include the vtable pointer/ptr to class name
+                                cA.Offset <- i+1
+                                Some <| getLLVMType globals !ptype
+                            | _ -> None) cAs
                     
-                    // Get rid of the Nones
-                    Seq.filter Option.isSome varTypesOptions |> Seq.map Option.get
+                // Get rid of the Nones
+                Seq.filter Option.isSome varTypesOptions |> Seq.map Option.get
 
-                // Instance Type
-                let varTypes = getLLVMVarTypes NotStatic
-                let types = Seq.append [|nA.VTablePointerType.Value|] varTypes
+            // Instance Type
+            let varTypes = getLLVMVarTypes NotStatic
+            let types = Seq.append [|nA.VTablePointerType.Value|] varTypes
 
-                structSetBody nA.InstanceType.Value (Seq.toArray types) false
+            structSetBody nA.InstanceType.Value (Seq.toArray types) false
 
-                // Static Type
-                let varTypes = getLLVMVarTypes Static
-                let types = Seq.append [|nA.VTablePointerType.Value|] varTypes
+            // Static Type
+            let varTypes = getLLVMVarTypes Static
+            let types = Seq.append [|nA.VTablePointerType.Value|] varTypes
 
-                structSetBody nA.StaticType.Value (Seq.toArray types) false
+            structSetBody nA.StaticType.Value (Seq.toArray types) false
 
-                // VTable Type
-                structSetBody nA.VTableType.Value [|i32|] false
+            // VTable Type
+            structSetBody nA.VTableType.Value [|i32|] false
 
-            | _ -> ()
+        | _ -> ()
 
-    let genClassProcStub (cA:ClassDeclA) =
-        match cA.Item with
-            | ClassVar _ -> ()
-            | ClassProc (name, vis, isStatic, params_, retType, eA) ->                
-                // Create a new function
-                let retTy = getInstPointTy globals !retType
-                let paramsTy = Seq.map (fun (p:Param) -> getInstPointTy globals p.PType) !params_ |> Seq.toArray
-                let funcTy = functionType retTy paramsTy
-                let func = addFunction mo (changeSRO cA.QName) funcTy
+let genClassProcStub globals mo (cA:ClassDeclA) =
+    match cA.Item with
+        | ClassVar _ -> ()
+        | ClassProc (name, vis, isStatic, params_, retType, eA) ->                
+            // Create a new function
+            let retTy = getInstPointTy globals !retType
+            let paramsTy = Seq.map (fun (p:Param) -> getInstPointTy globals p.PType) !params_ |> Seq.toArray
+            let funcTy = functionType retTy paramsTy
+            let func = addFunction mo (changeSRO cA.QName) funcTy
 
-                // Set func value ref for class decl
-                cA.Ref.ValueRef <- func
-                cA.FuncType <- funcTy
+            // Set func value ref for class decl
+            cA.Ref.ValueRef <- func
+            cA.FuncType <- funcTy
 
-    let genClassProcStubs (nA:NamespaceDeclA) =
-        match nA.Item with
-            | Class (_, _, _, cAs) -> Seq.iter genClassProcStub cAs
-            | _ -> ()
-    
-    Seq.iter createInitStructures program
-    Seq.iter genClassStructure program
-    Seq.iter genClassProcStubs program
+let genClassProcStubs globals mo (nA:NamespaceDeclA) =
+    match nA.Item with
+        | Class (_, _, _, cAs) -> Seq.iter (genClassProcStub globals mo) cAs
+        | _ -> ()
+
+let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDeclA>) =
+    Seq.iter (createInitStructures context) program
+    Seq.iter (genClassStructure globals) program
+    Seq.iter (genClassProcStubs globals mo) program
 
 
 let genMalloc externs bldr ty =
@@ -164,7 +164,7 @@ let genLvalue (globals:GlobalStore) bldr (eA:ExprA) =
                 
                     
 
-let rec genExpr globals func bldr (eA:ExprA) =
+let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
     let genE = genExpr globals func bldr
     match eA.Item with
         | ConstUnit -> failwithf "unimplemented 98235674"
@@ -189,21 +189,9 @@ let rec genExpr globals func bldr (eA:ExprA) =
                             | ClassVar _ -> genClassVarLoad bldr this cA.Offset
                 | _ -> failwithf "Can only perform dot operation on static or instance type"
 
-        | Binop (op, left, right) ->
-            let bIcmp cond = (fun bldr -> buildICmp bldr cond)
-            let buildFunc = match op with
-                | Add ->        buildAdd
-                | Sub ->        buildSub
-                | Div ->        buildSDiv
-                | Mul ->        buildMul
-                | BoolAnd ->    buildAnd
-                | BoolOr ->     buildOr
-                | Lt ->         bIcmp IntPredicate.IntSLT 
-                | Gt ->         bIcmp IntPredicate.IntSGT 
-                | LtEq ->       bIcmp IntPredicate.IntSLE 
-                | GtEq ->       bIcmp IntPredicate.IntSGE 
-                | Eq ->         bIcmp IntPredicate.IntEQ
-            buildFunc bldr (genE left) (genE right) ""
+        | Binop _ ->
+            failwithf "Binop has not been lowered to Call at codegen time - compiler fail"
+
         | Call (eA, args) ->
             let argEs = List.map genE args
 
@@ -403,21 +391,30 @@ let genMain mo (program:seq<NamespaceDeclA>) =
     buildRet bldr (genConstInt i32 0UL) |> ignore
             
 
-let gen (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
+let gen (globals:GlobalStore) (program:list<NamespaceDeclA>) =
     let context = contextCreate ()
     let mo = moduleCreateWithNameInContext (DateTime.Now.ToLongDateString()) context
 
     // Define some important externs
     let externs = genExterns mo
 
-    // Build the builtin stuff
-    BuiltinGen.genConsole externs mo <| Map.find "System::Console" Builtins.builtinsMap
+    // Separat classes into builtins and not builtins
+    let all = List.map (fun (nA:NamespaceDeclA) -> Util.either nA.IsBuiltin nA) program
+    let builtins = Util.lefts all
+    let nonBuiltins = Util.rights all
+
+    // Build the builtin stuff    
+    Builtins.builtinSetUpTypes globals
+    Seq.iter (genClassProcStubs globals mo) builtins
+    Builtins.builtinGenInts globals
+    Builtins.builtinGenBool globals
+    Builtins.builtinGenConsole externs globals
 
     // Build the structures required to store the information
-    genClassStructures globals context mo program
+    genClassStructures globals context mo nonBuiltins
 
     // Build the class/interface operations themselves
-    Seq.iter (genNamespace globals externs mo) program
+    Seq.iter (genNamespace globals externs mo) nonBuiltins
 
     // Generate the initial main function
     genMain mo program

@@ -11,7 +11,7 @@ and make a default map of references that can be added for everything
 *)           
 
 
-let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
+let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
 
     let getQName namespace_ usings name =
         // See if it is a qualified name first
@@ -23,7 +23,9 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
         else
             // Look in local place first then usings
             let placesToLook = Seq.append [namespace_] usings
-            match Seq.tryPick (fun nspace -> Map.tryFindKey (fun key value -> key = qualifiedName nspace name []) globals) placesToLook with
+            let gs = globals
+            match Seq.tryPick (fun nspace -> Map.tryFindKey (fun key value -> 
+                key = qualifiedName nspace name []) globals) placesToLook with
                 | Some qname -> qname
                 | None -> match Map.tryFindKey (fun key value -> key = name) globals with
                     | None -> failwithf "Couldn't find %s in globals" name
@@ -39,8 +41,9 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
         Seq.iter (fun (p:Param) -> p.PType <- newPType nspace usings p.PType) params_
 
 
-    let annotateCIRefsClass cname (cA:ClassDeclA) =
-        let qname = qualifiedName cA.Namespace cname [cA.Name]
+    let annotateCIRefsClass (enclosingClass:NamespaceDeclA) (cA:ClassDeclA) =
+        let qname = enclosingClass.QName + "." + cA.Name
+        cA.EnclosingNamespaceDeclA <- Some enclosingClass
 
         match cA.Item with
             | ClassVar (name, vis, isStatic, ptype, eA) ->
@@ -49,7 +52,7 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
                 (name, ClassRef cA)
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
                 // Check to see that proc name isn't the same as the classname
-                if name = cname then failwithf "Can't use %s as the name for class %s - must be different" name name
+                if name = enclosingClass.Name then failwithf "Can't use %s as the name for class %s - must be different" name name
                 // Type expansion
                 expandParamsQName cA.Namespace cA.Usings !params_
                 returnType := newPType cA.Namespace cA.Usings !returnType
@@ -71,7 +74,7 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
         let refs = match nA.Item with
             | Class (name, vis, isStruct, cAs) ->
                 nA.QName <- nA.Namespace + "::" + name
-                Seq.map (annotateCIRefsClass name) cAs
+                Seq.map (annotateCIRefsClass nA) cAs
             | Interface (name, vis, iAs) ->
                 nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsInterface name) iAs
@@ -80,9 +83,6 @@ let annotateCIRefs (globals:GlobalStore) (program:seq<NamespaceDeclA>) =
 
 
     Seq.iter annotateCIRefsNamespace program
-    // Annotate CIRefs for builtins too
-    Seq.iter annotateCIRefsNamespace <| Seq.map snd Builtins.builtinsSeq
-
 
 
 
@@ -119,9 +119,6 @@ let getGlobalRefs (program:Program) =
 
 
     let globals = concatMap getGlobalRefsCU program
-    
-    // Add System globals
-    let globsPlusBuiltins = Seq.append Builtins.builtinsSeq globals
 
     // Now make them into a map
-    Map.ofSeq globsPlusBuiltins
+    Map.ofSeq globals

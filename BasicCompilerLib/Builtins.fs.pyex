@@ -3,53 +3,7 @@
 open Tree
 open LLVMTypes
 
-$py(numeric=['Add','Sub','Div','Mul'])\
-$py(numcomp=['Lt','Gt','LtEq','GtEq','Eq'])\
-$py(boolean=['BoolAnd', 'BoolOr'])\
-
 $py(intsizes=[8,16,32,64])\
 
-let createBuiltin namespace_ name llvmType =
-    let nA = NamespaceDeclA(Class (name, Public, Struct, []), Pos.NilPos)
-    nA.Namespace <- namespace_
-    nA.InstanceType <- Some llvmType
-    (qualifiedName namespace_ name [], nA)
-
-let retVoidEA () = ExprA(ReturnVoid, Pos.NilPos)
-
-let createConsole () =
-    let println = ClassDeclA(ClassProc ("println", Public, Static, ref [Param("x", commonPtype <| Int 32)], ref <| commonPtype Unit, retVoidEA ()), Pos.NilPos)
-    let nA = NamespaceDeclA(Class ("Console", Public, NotStruct, [println]), Pos.NilPos)
-    nA.Namespace <- "System"
-    nA.InstanceType <- Some i32
-    ("System::Console", nA)
-
-let builtinsSeq =
-    [
-$for(x in intsizes)\
-        createBuiltin "System" "Int$(x)" i$(x);
-$endfor\
-        createBuiltin "System" "Bool" i1;
-        createBuiltin "System" "Unit" tyVoid;
-        createConsole ();
-    ]
-
-let builtinsMap = Map.ofList builtinsSeq
-
-let isBuiltin qname = Map.containsKey qname builtinsMap
-
-let binopToType binop ltype rtype = match (binop, ltype, rtype) with
-$for(size in intsizes)\
-$for(x in numeric)\
-    | ($(x), UserType "System::Int$(size)", UserType "System::Int$(size)") -> Some <| UserType "System::Int$(size)"
-$endfor\
-$endfor\
-$for(size in intsizes)\
-$for(x in numcomp)\
-    | ($(x), UserType "System::Int$(size)", UserType "System::Int$(size)") -> Some <| UserType "System::Bool"
-$endfor\
-$endfor\
-$for(x in boolean)\
-    | ($(x), UserType "System::Bool", UserType "System::Bool") -> Some <| UserType "System::Bool"
-$endfor\
-    | _ -> None
+let builtinGenInts globals =
+    

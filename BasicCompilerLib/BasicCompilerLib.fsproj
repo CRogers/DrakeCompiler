@@ -35,21 +35,17 @@
     <DocumentationFile>bin\Release\BasicCompiler.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="FSharp.PowerPack">
-      <HintPath>..\lib\FSharp.PowerPack\bin\FSharp.PowerPack.dll</HintPath>
-    </Reference>
-    <Reference Include="LLVMFSharp">
-      <HintPath>..\lib\LLVMFSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="mscorlib" />
-    <Reference Include="FSharp.Core, Version=4.3.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Numerics" />
-  </ItemGroup>
+  <PropertyGroup>
+    <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
+  </PropertyGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets" Condition=" Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')" />
+  <PropertyGroup>
+    <PreBuildEvent>python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Parser.fsy.pyex" &gt;"$(ProjectDir)\Parser.fsy"
+python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Lexer.fsl.pyex" &gt;"$(ProjectDir)\Lexer.fsl"
+python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Stdlib.fs.pyex" &gt;"$(ProjectDir)\Stdlib.fs"
+"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
+"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" -v "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser</PreBuildEvent>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include="Util.fs" />
     <Compile Include="Print.fs" />
@@ -68,22 +64,25 @@
     <Compile Include="Annotate1.fs" />
     <Compile Include="Annotate2.fs" />
     <Compile Include="Annotate.fs" />
+    <Compile Include="Stdlib.fs" />
     <Compile Include="Compiler.fs" />
     <None Include="App.config" />
   </ItemGroup>
-  <PropertyGroup>
-    <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
-  </PropertyGroup>
-  <Import Project="$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets" Condition=" Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')" />
-  <PropertyGroup>
-    <PreBuildEvent>python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Parser.fsy.pyex" &gt;"$(ProjectDir)\Parser.fsy"
-python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Lexer.fsl.pyex" &gt;"$(ProjectDir)\Lexer.fsl"
-python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Builtins.fs.pyex" &gt;"$(ProjectDir)\Builtins.fs"
-python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\stdlib.b.pyex" &gt;"$(ProjectDir)\stdlib.b"
-"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
-"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" -v "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser
-</PreBuildEvent>
-  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="FSharp.PowerPack">
+      <HintPath>..\lib\FSharp.PowerPack\bin\FSharp.PowerPack.dll</HintPath>
+    </Reference>
+    <Reference Include="LLVMFSharp">
+      <HintPath>..\lib\LLVMFSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="mscorlib" />
+    <Reference Include="FSharp.Core, Version=4.3.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Numerics" />
+  </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

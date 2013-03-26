@@ -51,10 +51,23 @@ type CompilerResult(textLines: array<string>, errors: list<Error>, llvmModule: M
     member x.GetErrorText() = Seq.map (errorText textLines) errors
     member x.Module = llvmModule
 
+let parseStdlib () =
+    let stdlibParsed = parseText Stdlib.stdlibTxt
+
+    iterAST foldASTCompilationUnit (fun (annot:Annot) ->
+        if annot :? NamespaceDeclA then
+            (annot :?> NamespaceDeclA).IsBuiltin <- true) stdlibParsed
+    |> ignore
+
+    stdlibParsed
+
 let compile (text:string) =
     try
         let textLines = text.Split('\n')
-        let parsed = [parse textLines]
+        let stdlin = Stdlib.stdlibTxt
+        let lexed = lexText Stdlib.stdlibTxt
+
+        let parsed = [parse textLines; parseStdlib ()]
         let globals, annotated = Annotate.annotate parsed
         Check.check annotated
         let llvmModule = Gen.gen globals annotated

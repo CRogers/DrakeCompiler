@@ -5,6 +5,8 @@ open LLVMTypes
 open LLVM.Core
 open LLVM.Generated.Core
 
+
+
 let genConsole externs mo (nA:NamespaceDeclA) =
     let printf = Map.find "printf" externs
     let numFmt = Map.find "numFmt" externs

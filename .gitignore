@@ -2,7 +2,6 @@
 *.suo
 bin/
 obj/
-Builtins.fs
 Lexer.fs
 Lexer.fsl
 Parser.fs
@@ -13,4 +12,4 @@ _ReSharper*
 *.pyc
 *.user
 *.fsyacc*
-stdlib.b
+Stdlib.fs

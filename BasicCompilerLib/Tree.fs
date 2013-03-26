@@ -8,11 +8,6 @@ open System.Collections.Generic
 open System
 open Util
 
-type Op = 
-    | Add | Sub | Mul | Div
-    | BoolAnd | BoolOr | Not
-    | Lt | Gt | LtEq | GtEq | Eq
-
 type RefType =
     | LocalRef
     | InstanceVarRef
@@ -63,7 +58,7 @@ and Ref(name: string, ptype:PType, reftype:RefType) =
 and Pos(startPos:Position, endPos:Position) =
     member x.StartPos = startPos
     member x.EndPos = endPos
-    override x.ToString() = sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
+    override x.ToString() = "" //sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
     static member NilPosition = {pos_fname= ""; pos_lnum = 0; pos_bol = 0; pos_cnum = 0}
     static member NilPos = Pos(Pos.NilPosition, Pos.NilPosition)
 
@@ -114,8 +109,8 @@ and Expr =
     | ConstBool of bool
     | ConstUnit
     | Var of string
-    | Binop of Op * ExprA * ExprA
     | Dot of ExprA * string
+    | Binop of string * ExprA * ExprA
     | Call of ExprA * list<ExprA>
     | Assign of ExprA * ExprA
     | DeclVar of string * (*Assign*) ExprA
@@ -130,8 +125,8 @@ and Expr =
 and ExprA(item:Expr, pos:Pos) =
     inherit AnnotRefs<Ref>(pos)    
 
-    member x.Item = item
-    override x.ItemObj = item :> obj
+    member val Item = item with get, set
+    override x.ItemObj = x.Item :> obj
 
     member val PType = Undef with get, set
 
@@ -147,12 +142,14 @@ and ClassDecl =
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
     inherit Annot(pos)
-    member x.Item = item
-    override x.ItemObj = upcast item
+    member val Item = item with get, set
+    override x.ItemObj = upcast x.Item
 
     member val Offset = -1 with get, set
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType = new TypeRef(nativeint 0xDEF) with get, set
+
+    member val EnclosingNamespaceDeclA:option<NamespaceDeclA> = None with get, set
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -251,9 +248,18 @@ type CompilationUnit = list<TopDeclA>
 type Program = list<CompilationUnit>
 
 
+let userTypeToString ptype = match ptype with
+    | UserType s -> s
+    | _ -> failwithf "Not a UserType"
+
+let paramsToPtype (params_:list<Param>) =
+    List.map (fun (p:Param) -> p.PType) params_
+
+let paramsToPtypeString (params_:list<Param>) =
+    List.map userTypeToString <| paramsToPtype params_
+
 let paramsReturnTypeToPtype (params_:list<Param>) returnType =
-    let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
-    PFunc (ptypeParams, returnType)
+    PFunc (paramsToPtype params_, returnType)
 
 let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
     namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
@@ -304,6 +310,12 @@ let getClassDecls (nAs:seq<NamespaceDeclA>) =
     |> Util.getSomes
     |> Seq.concat
 
+let getAllExprs (nAs:seq<NamespaceDeclA>) =
+    getClassDecls nAs
+    |> Seq.map (fun (cA:ClassDeclA) -> match cA.Item with
+        | ClassProc (_, _, _, _, _, eA) -> eA
+        | ClassVar (_, _, _, _, eA) -> eA)
+
 let isReturn (eA:ExprA) = match eA.Item with
     | Return _ -> true
     | ReturnVoid -> true
@@ -341,6 +353,7 @@ let rec lastInSeqAndPrev (eA:ExprA) =
 let isLastInSeqRet eA = isReturn <| lastInSeq eA
 
 type GlobalStore = Map<string, NamespaceDeclA>
+type BinopStore = Map<Name * list<string>, list<ClassDeclA>>
 
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =
     member x.Name = name
@@ -363,8 +376,8 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | ConstBool _ -> leafFunc exprA
         | ConstUnit -> leafFunc exprA
         | Var n -> leafFunc exprA
-        | Binop (op, l, r) -> bf [l; r]
         | Dot (eA, name) -> bf1 eA
+        | Binop (n, l, r) -> bf [l; r]
         | Call (feA, exprAs) -> bf <| feA :: exprAs
         | Assign (lvalue, innerExprA) -> bf [lvalue; innerExprA]
         | DeclVar (name, assignA) -> bf1 assignA

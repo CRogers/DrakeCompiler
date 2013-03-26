@@ -39,16 +39,14 @@ let ea item pos = ExprA(item, pos)
 
 
 let nop = ea Nop Pos.NilPos
-let seqnop eA = ea (Seq (ref nop, ref eA)) Pos.NilPos
 
 %}
 
-$py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','GtEq','Eq'])
+$py(binops=['BINOP' + str(x) for x in range(0,7)])
 
 %token<(Pos * int64)>  INT8 INT16 INT32 INT64 
-%token<(Pos * string)> IDENT
+%token<(Pos * string)> IDENT$for(binop in binops) $(binop)$endfor
 %token<Pos>            TRUE FALSE
-%token<Pos>            $for(binop in binops)$(binop.upper()) $endfor
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
 %token<Pos>            RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
 %token<Pos>            IF THEN ELSE WHILE DO VAR
@@ -61,14 +59,9 @@ $py(binops=['Add','Sub','Div','Mul','BoolAnd','BoolOr','Not','Lt','Gt','LtEq','G
 %start program
 
 %left SEMI
-%left BOOLOR
-%left BOOLAND
-%left NOT
-%left LT GT LTEQ GTEQ EQ
-%left ADD SUB
-%left DIV
-%left MUL
-
+$for(binop in binops)\
+%left $(binop)
+$endfor\
 %right ARROW
 
 %%
@@ -134,8 +127,16 @@ classDecls:
     | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
     /* add in a seq nop so we can chnage things around in the exprA easier later on */
-    | visibility static_ IDENT LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
-        { cba (ClassProc (v \$3, \$1, \$2, ref \$5, ref \$7, seqnop \$9)) (p \$3) \$9 :: \$11 }
+    | visibility static_ identOrBinop LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
+        { cba (ClassProc (v \$3, \$1, \$2, ref \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
+
+identOrBinop:
+    | IDENT
+        { \$1 }
+$for(binop in binops)\
+    | $(binop)
+        { \$1 }
+$endfor\
 
 possibleType:
     | /* empty */
@@ -178,14 +179,12 @@ expr0:
 expr1:
     | expr4 EQUALS expr3 SEMI
         { eaa (Assign (\$1, \$3)) \$1 \$3 }
-    | PRINT expr3 SEMI
-        { eba (Print \$2) \$1 \$2 }
     | VAR IDENT EQUALS expr3 SEMI
         {   let var = ea (Var (v \$2)) (p \$2)
             let assign = eba (Assign (var, \$4)) (p \$2) \$4
             eba (DeclVar (v \$2, assign)) \$1 \$4 }
     | RETURN expr3 SEMI
-        { eba (Return \$2) \$1 \$2 }
+        { eba (Return <| \$2) \$1 \$2 }
     | RETURN SEMI
         { ea ReturnVoid \$1  }
     | IF LPAR expr3 RPAR expr1 ELSE expr1
@@ -207,8 +206,8 @@ expr2:
 
 expr3:  
 $for(binop in binops)\
-    | expr3 $(binop.upper()) expr3
-        { eaa (Binop ($(binop), \$1, \$3)) \$1 \$3 }
+    | expr3 $(binop) expr3
+        { eaa (Binop (v \$2, \$1, \$3)) \$1 \$3 }
 $endfor\
     | expr4
         { \$1 }

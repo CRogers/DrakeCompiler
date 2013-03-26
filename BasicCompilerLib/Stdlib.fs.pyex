@@ -1,0 +1,36 @@
+module Stdlib
+
+let stdlibTxt = @"
+
+namespace System {
+
+$for((x, s) in [(8,"B"), (16,"S"), (32,""), (64,"L")])\
+	struct Int$(x) {
+$for(binop in ["+", "-", "/", "*", "%", "&", "|"])\
+		public static $(binop)(a: Int$(x), b: Int$(x)): Int$(x) {
+			return 0$(s);
+		}
+
+$endfor\
+	}
+
+$endfor\
+
+	struct Bool {
+$for(binop in ["&&", "||"])\
+	public static $(binop)(a: Bool, b: Bool): Bool {
+		return false;
+	}
+$endfor\
+	}
+
+	struct Unit {}
+
+	struct Console {
+		public static println(x: Int32) {
+			return;
+		}
+	}
+}
+
+"

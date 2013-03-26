@@ -2,6 +2,9 @@
 
 let getSomes xs = Seq.filter Option.isSome xs |> Seq.map Option.get
 
+let intersection (xs:list<'a>) (ys:list<'a>) =
+    let set = HashSet<'a>(xs, HashIdentity.Structural)
+    ys |> List.filter (fun x -> not (set.Contains x))
 
 let concatMap f items =
     Seq.map f items

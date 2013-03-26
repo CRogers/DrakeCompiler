@@ -14,7 +14,7 @@ let returnVoidA (refs:Map<string,Ref>) =
     rvA.AddRefs(refs)
     rvA
 
-let checkReturns (program:seq<NamespaceDeclA>) =
+let checkReturns (program:list<NamespaceDeclA>) =
     let rec isBlocked eA =
         let foundIsBlocked (eA:ExprA) = match eA.Item with
             | ReturnVoid
@@ -32,8 +32,8 @@ let checkReturns (program:seq<NamespaceDeclA>) =
                     isBlocked (match seq.Item with Seq (_, next) -> !next)
             | FoundAtEnd eA -> foundIsBlocked eA
 
-    getClassDecls program
-    |> Seq.iter (fun cA -> match cA.Item with
+    let innerPart (cA:ClassDeclA) = match cA.Item with
+        // Case 1: Return type is void
         | ClassProc (name, vis, isStatic, params_, ptype, eA) when !ptype = commonPtype Unit ->
             // Check there are no returns of the wrong type
             iterAST foldASTExpr (fun (annot:Annot) ->
@@ -44,13 +44,13 @@ let checkReturns (program:seq<NamespaceDeclA>) =
 
             // If we find no return at the end of the function, add one
             if not <| isBlocked eA then
-                let penultimate, last = lastInSeqAndPrev eA
-                match penultimate with
-                    | None -> failwithf "Something has gone terribly wrong"
-                    | Some eA -> match eA.Item with
-                        | Seq (_, e2A) ->
-                            e2A := ExprA(Seq(ref last, ref <| returnVoidA last.Refs), Pos.NilPos)
+                let last = lastInSeq eA
+                let newExprAForLast = ExprA(last.Item, Pos.NilPos)
+                newExprAForLast.PType <- last.PType
+                last.Item <- Seq(ref newExprAForLast, ref <| returnVoidA last.Refs)
+                last.PType <- commonPtype Unit
 
+        // Case 2: Return type isn't void
         | ClassProc (name, vis, isStatic, params_, ptype, eA) ->
             // Make sure all returns have the right type
             iterAST foldASTExpr (fun (annot:Annot) ->
@@ -63,7 +63,9 @@ let checkReturns (program:seq<NamespaceDeclA>) =
             if not <| isBlocked eA then
                 failwithf "Must return at end"
         | _ -> ()
-    )
 
-let check (program:seq<NamespaceDeclA>) =
+    getClassDecls program
+    |> Seq.iter innerPart
+
+let check (program:list<NamespaceDeclA>) =
     checkReturns program

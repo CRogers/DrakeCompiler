@@ -13,6 +13,22 @@ let lexeme = Lexing.LexBuffer<_>.LexemeString
 let newline (lexbuf:LexBuffer<_>) = lexbuf.EndPos <- lexbuf.EndPos.NextLine
 let pos (lexbuf:LexBuffer<_>) = Pos(lexbuf.StartPos, lexbuf.EndPos)
 
+let binopLevel char = match char with
+    | '*'
+    | '/' -> BINOP6
+    | '%' -> BINOP5
+    | '+'
+    | '-' -> BINOP4
+    | '='
+    | '<'
+    | '>' -> BINOP3
+    | '?'
+    | '!' -> BINOP2
+    | '&' -> BINOP1
+    | '|' -> BINOP0
+
+let allButLastChar (str:string) = str.Substring(0,str.Length-1)
+
 $py(defs=[("print", "PRINT"), ("proc", "PROC"), ("return", "RETURN")])\
 $py(defs+=[("true", "TRUE"), ("false", "FALSE"), ("start", "START")])\
 $py(defs+=[("if", "IF"), ("then", "THEN"), ("else", "ELSE"), ("while", "WHILE"), ("do", "DO"), ("var", "VAR")])\
@@ -21,15 +37,14 @@ $py(defs+=[("using", "USING"), ("static", "STATIC"), ("constructor", "CONSTRUCTO
 $py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE")])\
 
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY")])\
-$py(defs+=[("+", "ADD"), ("-", "SUB"), ("/", "DIV"), ("*", "MUL"), (":", "COLON"), (";", "SEMI")])\
-$py(defs+=[(",", "COMMA"), ("=", "EQUALS"), ("&&", "BOOLAND"), ("||", "BOOLOR"), ("!", "NOT")])\
-$py(defs+=[("<", "LT"), (">", "GT"), ("<=", "LTEQ"), (">=", "GTEQ"), ("==", "EQ")])\
-$py(defs+=[(".", "DOT"), ("->", "ARROW"), ("::", "SRO")])\
+$py(defs+=[(":", "COLON"), (";", "SEMI"), ("=", "EQUALS")])\
+$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO")])\
 
 }
 
 let integer = '-'? ['0'-'9']+
 let ident = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
+let symbol = ['+' '-' '*' '/' '%' '&' '|' '!' '=' '?']+
 let white = [' ' '\t']
 let endline = '\r'? '\n'
 let comment = '/' '/' [^ '\r' '\n']*
@@ -45,11 +60,12 @@ and token = parse
     | endline               { newline lexbuf; token lexbuf }
     | eof                   { EOF (pos lexbuf) }
     | integer               { INT32 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
-    | integer 'B'           { INT8  (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
-    | integer 'S'           { INT16 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
-    | integer 'L'           { INT64 (pos lexbuf, Int64.Parse(lexeme lexbuf)) }
+    | integer 'B'           { INT8  (pos lexbuf, Int64.Parse(allButLastChar <| lexeme lexbuf)) }
+    | integer 'S'           { INT16 (pos lexbuf, Int64.Parse(allButLastChar <| lexeme lexbuf)) }
+    | integer 'L'           { INT64 (pos lexbuf, Int64.Parse(allButLastChar <| lexeme lexbuf)) }
 $for((str, defn) in defs)\
     | "$(str)"              { $(defn) (pos lexbuf) }
 $endfor\
     | ident                 { IDENT (pos lexbuf, lexeme lexbuf) }
+    | symbol                { let s = lexeme lexbuf in binopLevel s.[0] (pos lexbuf, s)  }
     | _                     { failwithf "Lexing fail for %s" (lexeme lexbuf) }
