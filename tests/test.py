@@ -61,4 +61,5 @@ def processTest(path):
 		print Fore.MAGENTA + "------------------------------------------------------------------------------" + Fore.RESET
 
 for x in sys.argv[1:]:
-	processTest(x)
+	if x != 'test.py':
+		processTest(x)

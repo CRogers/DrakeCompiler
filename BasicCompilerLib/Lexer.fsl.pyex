@@ -36,7 +36,7 @@ $py(defs+=[("namespace", "NAMESPACE"),("class", "CLASS"), ("struct", "STRUCT"), 
 $py(defs+=[("using", "USING"), ("static", "STATIC"), ("constructor", "CONSTRUCTOR")])\
 $py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE")])\
 
-$py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY")])\
+$py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY"), ("[", "LSQUARE"), ("]", "RSQUARE")])\
 $py(defs+=[(":", "COLON"), (";", "SEMI"), ("=", "EQUALS")])\
 $py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO")])\
 

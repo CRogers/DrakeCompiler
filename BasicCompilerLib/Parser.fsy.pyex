@@ -48,7 +48,7 @@ $py(binops=['BINOP' + str(x) for x in range(0,7)])
 %token<(Pos * string)> IDENT$for(binop in binops) $(binop)$endfor
 %token<Pos>            TRUE FALSE
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
-%token<Pos>            RETURN LCURLY RCURLY SEMI START PROC EQUALS LET
+%token<Pos>            RETURN LCURLY RCURLY LSQUARE RSQUARE SEMI START PROC EQUALS LET
 %token<Pos>            IF THEN ELSE WHILE DO VAR
 %token<Pos>            NAMESPACE CLASS STRUCT INTERFACE
 %token<Pos>            PRIVATE PUBLIC
@@ -126,7 +126,6 @@ classDecls:
         { [] }
     | visibility static_ VAR IDENT COLON possibleType EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
-    /* add in a seq nop so we can chnage things around in the exprA easier later on */
     | visibility static_ identOrBinop LPAR params RPAR possibleReturnType LCURLY expr0 RCURLY classDecls
         { cba (ClassProc (v \$3, \$1, \$2, ref \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
 
@@ -177,8 +176,12 @@ expr0:
         { eaa (Seq (ref \$1, ref \$2)) \$1 \$2 }
 
 expr1:
-    | expr4 EQUALS expr3 SEMI
-        { eaa (Assign (\$1, \$3)) \$1 \$3 }
+    | IDENT EQUALS expr3 SEMI
+        {   let var = ea (Var <| v \$1) (p \$1) 
+            ebb (Assign (var, \$3)) (p \$1) \$4 }
+    | expr4 LSQUARE expr3 RSQUARE EQUALS expr3 SEMI
+        {   let dot = eab (Dot (\$1, "indexer")) \$1 \$2
+            eab (Call (dot, [\$3; \$6])) \$1 \$7 }
     | VAR IDENT EQUALS expr3 SEMI
         {   let var = ea (Var (v \$2)) (p \$2)
             let assign = eba (Assign (var, \$4)) (p \$2) \$4
@@ -227,6 +230,10 @@ $for(x in [8,16,32,64])\
 $endfor\
     | expr4 LPAR argList RPAR  
         { eab (Call (\$1, \$3)) \$1 \$4 }
+    | expr4 LSQUARE expr3 RSQUARE
+        {   let dot = eab (Dot (\$1, "indexer")) \$1 \$2
+            eab (Call (dot, [\$3])) \$1 \$4 
+        }
     | expr5
         { \$1 }
 
@@ -235,6 +242,7 @@ expr5:
         { eab (Dot (\$1, v \$3)) \$1 (p \$3) }
     | LPAR expr3 RPAR
         { \$2 }
+
 
 argList:
     | /* empty */
