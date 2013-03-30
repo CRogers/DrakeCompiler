@@ -171,7 +171,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
     /////////////
     let annotateTypesNamespace (nA:NamespaceDeclA) =
         match nA.Item with
-            | Class (name, vis, isStruct, cAs) ->
+            | Class (name, vis, isStruct, ifaces, cAs) ->
                 // Ref for the ctor
                 let ctorRef = Ref(name, PFunc ([], UserType nA.QName), StaticProcRef)
                 nA.CtorRef <- ctorRef

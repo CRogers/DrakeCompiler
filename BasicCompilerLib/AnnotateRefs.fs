@@ -1,4 +1,4 @@
-﻿module Annotate1
+﻿module AnnotateRefs
 
 open Tree
 open Util
@@ -72,10 +72,10 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
     let annotateCIRefsNamespace (nA:NamespaceDeclA) =
         // We need to go deeper - add CIRefs for classes/interfaces
         let refs = match nA.Item with
-            | Class (name, vis, isStruct, cAs) ->
+            | Class (name, vis, isStruct, ifaces, cAs) ->
                 nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsClass nA) cAs
-            | Interface (name, vis, iAs) ->
+            | Interface (name, vis, ifaces, iAs) ->
                 nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsInterface name) iAs
 

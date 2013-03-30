@@ -58,7 +58,7 @@ let getLLVMType (globals:GlobalStore) ptype =
    
 let createInitStructures context (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (name, vis, isStruct, cAs) ->
+        | Class (name, vis, isStruct, ifaces, cAs) ->
             nA.InstanceType <- Some (structCreateNamed context <| changeSRO nA.QName)
             nA.StaticType <- Some (structCreateNamed context <| changeSRO nA.QName + "+Static")
             nA.VTableType <- Some (structCreateNamed context <| changeSRO nA.QName + "+VTable")
@@ -67,7 +67,7 @@ let createInitStructures context (nA:NamespaceDeclA) =
 
 let genClassStructure globals (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (name, vis, isStruct, cAs) ->
+        | Class (name, vis, isStruct, ifaces, cAs) ->
             let getLLVMVarTypes isStatic =
                 let varTypesOptions =
                     Seq.mapi (fun i (cA:ClassDeclA) ->
@@ -114,7 +114,7 @@ let genClassProcStub globals mo (cA:ClassDeclA) =
 
 let genClassProcStubs globals mo (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (_, _, _, cAs) -> Seq.iter (genClassProcStub globals mo) cAs
+        | Class (_, _, _, _, cAs) -> Seq.iter (genClassProcStub globals mo) cAs
         | _ -> ()
 
 let genClassStructures (globals:GlobalStore) context mo (program:seq<NamespaceDeclA>) =
@@ -306,7 +306,7 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
 
 let genNamespace globals externs mo (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (name, vis, isStruct, cAs) ->
+        | Class (name, vis, isStruct, ifaces, cAs) ->
             // Make object allocation ctor func
             let ctorFuncTy = functionType nA.InstancePointerType.Value [||]
             let ctorFunc = addFunction mo (changeSRO nA.QName + "+ctor") ctorFuncTy
@@ -337,7 +337,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
 
             // Gen the code for the procedures
             Seq.iter (genClass globals mo) cAs
-        | Interface (name, vis, iAs) -> ()//Seq.iter genInterface iAs
+        | Interface (name, vis, ifaces, iAs) -> ()//Seq.iter genInterface iAs
 
 
 let genExterns mo =

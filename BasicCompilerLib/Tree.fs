@@ -18,6 +18,8 @@ with
 
 type Name = string
 
+type ImplementingInterface = string
+
 type IsStatic =
     | Static
     | NotStatic
@@ -184,14 +186,16 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     override x.ItemObj = upcast item
 
     member x.PType = match x.Item with
-        | InterfaceProc (_, params_, returnType) -> !returnType
+        | InterfaceProc (_, params_, returnType) ->
+            let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
+            PFunc (ptypeParams, !returnType)
 
     member x.Name = match x.Item with
         | InterfaceProc (name, _, _) -> name
 
 and NamespaceDecl =
-    | Class of Name * Visibility * IsStruct * list<ClassDeclA>
-    | Interface of Name * Visibility * list<InterfaceDeclA>
+    | Class of Name * Visibility * IsStruct * list<ImplementingInterface> * list<ClassDeclA>
+    | Interface of Name * Visibility * list<ImplementingInterface> * list<InterfaceDeclA>
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     inherit AnnotRefs<CIRef>(pos)
@@ -219,16 +223,16 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         | Interface _ -> false
 
     member x.Visibility = match x.Item with
-            | Class (_, vis, _, _) -> vis
-            | Interface (_, vis, _) -> vis
+            | Class (_, vis, _, _, _) -> vis
+            | Interface (_, vis, _, _) -> vis
 
     member x.Name = match x.Item with
-        | Class (name, _, _, _) -> name
-        | Interface (name, _, _) -> name
+        | Class (name, _, _, _, _) -> name
+        | Interface (name, _, _, _) -> name
 
     member x.IsStruct = match x.Item with
-        | Class (_, _, isStruct, _) -> isStruct
-        | Interface (_, _, _) -> NotStruct
+        | Class (_, _, isStruct, _, _) -> isStruct
+        | Interface (_, _, _, _) -> NotStruct
 
 
 type TopDecl =
@@ -306,7 +310,7 @@ let getNamespaceDecls (program:Program) =
 
 let getClassDecls (nAs:seq<NamespaceDeclA>) =
     nAs
-    |> Seq.map (fun (nA:NamespaceDeclA) -> match nA.Item with Class (_, _, _, cAs) -> Some cAs | _ -> None)
+    |> Seq.map (fun (nA:NamespaceDeclA) -> match nA.Item with Class (_, _, _, _, cAs) -> Some cAs | _ -> None)
     |> Util.getSomes
     |> Seq.concat
 
@@ -401,8 +405,8 @@ let foldASTInterfaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -
 let foldASTNamespaceDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (ndecl:NamespaceDeclA) =
     let fAST fASTFunc declAs = branchFunc ndecl <| List.map (fASTFunc branchFunc leafFunc) declAs
     match ndecl.Item with
-        | Class (_, _, _, cdeclAs) -> fAST foldASTClassDecl cdeclAs
-        | Interface (_, _, ideclAs) -> fAST foldASTInterfaceDecl ideclAs
+        | Class (_, _, _, _, cdeclAs) -> fAST foldASTClassDecl cdeclAs
+        | Interface (_, _, _, ideclAs) -> fAST foldASTInterfaceDecl ideclAs
 
 let foldASTTopDecl (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a) (tdecl:TopDeclA) =
     match tdecl.Item with

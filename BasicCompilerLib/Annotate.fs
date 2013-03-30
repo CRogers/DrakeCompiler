@@ -8,8 +8,8 @@ Glues together all the separate annotate modules
 
 open Util
 open Tree
-open Annotate1
-open Annotate2
+open AnnotateRefs
+open AnnotateTypes
 
 let flatternAST (program:Program) =
     let flatternTop (tA:TopDeclA) =
