@@ -31,7 +31,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             let cA = Seq.head value
 
             // Now change Binop into a Call
-            let var = ExprA(Var (cA.EnclosingNamespaceDeclA.Value.QName), Pos.NilPos)
+            let var = ExprA(Var (cA.EnclosingNDA.Value.QName), Pos.NilPos)
             let dot = ExprA(Dot (var, cA.Name), Pos.NilPos)
             let call = Call (dot, [l; r])
             eA.Item <- call

@@ -17,8 +17,7 @@ with
     override x.ToString() = fmt x
 
 type Name = string
-
-type ImplementingInterface = string
+type InterfaceName = string
 
 type IsStatic =
     | Static
@@ -151,7 +150,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType = new TypeRef(nativeint 0xDEF) with get, set
 
-    member val EnclosingNamespaceDeclA:option<NamespaceDeclA> = None with get, set
+    member val EnclosingNDA:option<NamespaceDeclA> = None with get, set
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -185,6 +184,8 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member x.Item = item
     override x.ItemObj = upcast item
 
+    member val EnclosingNDA:option<NamespaceDeclA> = None with get, set
+
     member x.PType = match x.Item with
         | InterfaceProc (_, params_, returnType) ->
             let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
@@ -193,9 +194,12 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member x.Name = match x.Item with
         | InterfaceProc (name, _, _) -> name
 
+    member x.Params = match x.Item with
+        | InterfaceProc (_, params_, _) -> params_
+
 and NamespaceDecl =
-    | Class of Name * Visibility * IsStruct * list<ImplementingInterface> * list<ClassDeclA>
-    | Interface of Name * Visibility * list<ImplementingInterface> * list<InterfaceDeclA>
+    | Class of Name * Visibility * IsStruct * list<InterfaceName> ref * list<ClassDeclA>
+    | Interface of Name * Visibility * list<InterfaceName> ref * list<InterfaceDeclA>
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     inherit AnnotRefs<CIRef>(pos)
@@ -237,9 +241,15 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         | Class (_, _, isStruct, _, _) -> isStruct
         | Interface (_, _, _, _) -> NotStruct
 
-    member x.ImplementingInterfaces = match x.Item with
-        | Class (_, _, _, ifaces, _) -> ifaces
-        | Interface (_, _, ifaces, _) -> ifaces
+    member x.InterfaceNames = match x.Item with
+        | Class (_, _, _, ifaces, _) -> !ifaces
+        | Interface (_, _, ifaces, _) -> !ifaces
+
+    member x.InterfaceDeclAs = match x.Item with
+        | Interface (_, _, _, iAs) -> iAs
+        | _ -> failwithf "Can't " 
+
+    member x.AllInterfaceProcs = concatMap (fun (nA:NamespaceDeclA) -> nA.InterfaceDeclAs) x.AllInterfaces
 
 
 type TopDecl =
@@ -257,6 +267,12 @@ type TopDeclA(item:TopDecl, pos:Pos) =
 
 type CompilationUnit = list<TopDeclA>
 type Program = list<CompilationUnit>
+
+
+type CDA = ClassDeclA
+type IDA = InterfaceDeclA
+type NDA = NamespaceDeclA
+
 
 
 let userTypeToString ptype = match ptype with
@@ -278,6 +294,13 @@ let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
         else "." + String.Join(".", extraNames)
 
 let isQualifiedName (name:string) = name.Contains("::")
+
+type NPKey = string * list<PType>
+let nameParamsKey name params_ : NPKey = (name, paramsToPtype params_)
+let interfaceNPKey (iA:InterfaceDeclA) = nameParamsKey iA.Name iA.Params
+let classNPKey (cA:ClassDeclA) = match cA.Item with
+    | ClassProc (name, _, _, params_, _, _) -> nameParamsKey name !params_
+    | _ -> failwithf "Must call on ClassProc only"
 
 let cpPrefix x = "System::" + x 
 

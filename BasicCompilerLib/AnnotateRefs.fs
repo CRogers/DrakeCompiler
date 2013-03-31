@@ -41,9 +41,9 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
         Seq.iter (fun (p:Param) -> p.PType <- newPType nspace usings p.PType) params_
 
 
-    let annotateCIRefsClass (enclosingClass:NamespaceDeclA) (cA:ClassDeclA) =
+    let annotateCIRefsClass (enclosingClass:NDA) (cA:CDA) =
         let qname = enclosingClass.QName + "." + cA.Name
-        cA.EnclosingNamespaceDeclA <- Some enclosingClass
+        cA.EnclosingNDA <- Some enclosingClass
 
         match cA.Item with
             | ClassVar (name, vis, isStatic, ptype, eA) ->
@@ -60,7 +60,9 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
                 (name, ClassRef cA)
 
 
-    let annotateCIRefsInterface iname (iA:InterfaceDeclA) =
+    let annotateCIRefsInterface (enclosingInterface:NDA) iname (iA:IDA) =
+        iA.EnclosingNDA <- Some enclosingInterface
+
         match iA.Item with
             | InterfaceProc (name, params_, returnType) ->
                 expandParamsQName iA.Namespace iA.Usings params_
@@ -69,15 +71,14 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
                 (name, InterfaceRef iA)
 
 
-    let annotateCIRefsNamespace (nA:NamespaceDeclA) =
+    let annotateCIRefsNamespace (nA:NDA) =
         // We need to go deeper - add CIRefs for classes/interfaces
         let refs = match nA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
-                nA.QName <- nA.Namespace + "::" + name
                 Seq.map (annotateCIRefsClass nA) cAs
             | Interface (name, vis, ifaces, iAs) ->
-                nA.QName <- nA.Namespace + "::" + name
-                Seq.map (annotateCIRefsInterface name) iAs
+                ifaces := List.map (getQName nA.Namespace nA.Usings) !ifaces
+                Seq.map (annotateCIRefsInterface nA name) iAs
 
         nA.AddRefs(refs)
 
@@ -93,6 +94,7 @@ let getGlobalRefs (program:Program) =
         iterAST foldASTNamespaceDecl (fun (annot:Annot) -> annot.NamespaceDecl <- Some nA) nA |> ignore
 
         let qname = qualifiedName namespace_ nA.Name []
+        nA.QName <- qname
         (qname, nA)
 
 
