@@ -1,5 +1,7 @@
 ﻿module Util
 
+open System.Collections.Generic
+
 let getSomes xs = Seq.filter Option.isSome xs |> Seq.map Option.get
 
 let intersection (xs:list<'a>) (ys:list<'a>) =
@@ -17,12 +19,12 @@ type Either<'a, 'b> =
 let either cond item = if cond then Left item else Right item
 
 let isLeft a = match a with
-     | Left x -> Some x
-     | Right x -> None
+    | Left x -> Some x
+    | Right x -> None
 
 let isRight a = match a with
-     | Left x -> None
-     | Right x -> Some x
+    | Left x -> None
+    | Right x -> Some x
 
 let allEithers xs = Seq.map (fun x -> 
     match x with
@@ -32,4 +34,48 @@ let allEithers xs = Seq.map (fun x ->
 let lefts xs = Seq.map isLeft xs |> getSomes
 let rights xs = Seq.map isRight xs |> getSomes
 
-// Warning	39	Possible incorrect indentation: this token is offside of context started at position (105:18). Try indenting this token further or using standard formatting conventions.	C:\Dropbox\Programming\Visual Studio 2012\Projects\BasicCompiler\BasicCompilerLib\Tree.fs	106	5	BasicCompilerLib
+
+type SCC<'a>(item: 'a) =
+    member x.Item = item
+    member val Index = -1 with get, set
+    member val Lowlink = -1 with get, set
+
+let stronglyConnectedComponents<'a when 'a:equality> (succ:'a -> seq<'a>) (graph:seq<'a>) : seq<HashSet<'a>> =
+    let ns = Seq.map (fun a -> (a,SCC(a))) graph
+    let nodes = Seq.map snd ns
+    let nodeMap = new Dictionary<'a,SCC<'a>>()
+    for k, v in ns do nodeMap.Add(k,v)     
+    
+    let index = ref 0
+    let stack = new Stack<SCC<'a>>()
+    let SCCs = new List<HashSet<'a>>()
+
+    let rec strongConnect (node:SCC<'a>) =
+        node.Index <- !index
+        node.Lowlink <- !index
+        index := !index + 1
+        stack.Push(node)
+
+        for s in succ node.Item do
+            let successor = nodeMap.[s]
+            if successor.Index = -1 then
+                strongConnect successor
+                node.Lowlink <- min node.Lowlink successor.Lowlink
+            elif stack.Contains(successor) then
+                node.Lowlink <- min node.Lowlink successor.Index
+
+        if node.Lowlink = node.Index then
+            let list = new List<'a>()
+            let mutable w = stack.Pop()
+            list.Add(w.Item)
+            while not (w.Item = node.Item) do
+                w <- stack.Pop()
+                list.Add(w.Item)
+            SCCs.Add(new HashSet<'a>(list))
+
+
+    for node in nodes do
+        if node.Index = -1 then
+            strongConnect node
+
+    System.Linq.Enumerable.AsEnumerable(SCCs)

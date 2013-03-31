@@ -61,8 +61,9 @@ python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDi
     <Compile Include="BuiltinGen.fs" />
     <Compile Include="Gen.fs" />
     <Compile Include="Check.fs" />
-    <Compile Include="Annotate1.fs" />
-    <Compile Include="Annotate2.fs" />
+    <Compile Include="AnnotateTypes.fs" />
+    <Compile Include="AnnotateInterfaces.fs" />
+    <Compile Include="AnnotateRefs.fs" />
     <Compile Include="Annotate.fs" />
     <Compile Include="Stdlib.fs" />
     <Compile Include="Compiler.fs" />

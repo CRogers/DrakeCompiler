@@ -1,4 +1,4 @@
-﻿module Annotate2
+﻿module AnnotateTypes
 
 open Tree
 open Builtins

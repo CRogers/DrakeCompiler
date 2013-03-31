@@ -117,7 +117,7 @@ ifaceImplements:
 ifaceImplements2:
     | scopeResolvedName
         { [v \$1] }
-    | scopeResolvedName COMMA ifaceImplements
+    | scopeResolvedName COMMA ifaceImplements2
         { v \$1 :: \$3 }
 
 namespaceDecls:

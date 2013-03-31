@@ -9,6 +9,7 @@ Glues together all the separate annotate modules
 open Util
 open Tree
 open AnnotateRefs
+open AnnotateInterfaces
 open AnnotateTypes
 
 let flatternAST (program:Program) =
@@ -48,6 +49,7 @@ let annotate (program:Program) =
     let flatProg = flatternAST program
 
     annotateCIRefs globals flatProg
+    annotateInterfaces globals flatProg
 
     // Find the binops
     let binops = findBinops flatProg

@@ -206,6 +206,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     override x.ItemObj = upcast item
 
     member val CtorRef:Ref = Ref(null, Undef, StaticProcRef) with get, set
+    member val Interfaces:list<NamespaceDeclA> = [] with get, set
+    member val AllInterfaces:list<NamespaceDeclA> = [] with get, set
+    member val ImplementedBy:list<NamespaceDeclA> = [] with get, set
 
     member val InstanceType:option<TypeRef> = None with get, set
     member val StaticType:option<TypeRef> = None with get, set
@@ -233,6 +236,10 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.IsStruct = match x.Item with
         | Class (_, _, isStruct, _, _) -> isStruct
         | Interface (_, _, _, _) -> NotStruct
+
+    member x.ImplementingInterfaces = match x.Item with
+        | Class (_, _, _, ifaces, _) -> ifaces
+        | Interface (_, _, ifaces, _) -> ifaces
 
 
 type TopDecl =
