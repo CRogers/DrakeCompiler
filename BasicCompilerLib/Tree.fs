@@ -5,12 +5,14 @@ open LLVMTypes
 open LLVM.Generated.Core
 open Microsoft.FSharp.Text.Lexing
 open System.Collections.Generic
+open System.Diagnostics
 open System
 open Util
 
 type RefType =
     | LocalRef
     | InstanceVarRef
+    | StaticVarRef
     | InstanceProcRef
     | StaticProcRef
 with
@@ -22,6 +24,7 @@ type InterfaceName = string
 type IsStatic =
     | Static
     | NotStatic
+    with override x.ToString() = fmt x
 
 let isStatic x = match x with
     | Static -> true
@@ -30,50 +33,54 @@ let isStatic x = match x with
 type IsStruct =
     | Struct
     | NotStruct
+    with override x.ToString() = fmt x
 
 type Visibility =
     | Private
     | Public
+    with override x.ToString() = fmt x
 
+type NPKey = 
+    | VarKey of string
+    | ProcKey of string * list<string>
+    with override x.ToString() = fmt x
 
 type PType = 
     | Undef
-    | UserType of string
-    | StaticType of NamespaceDeclA
-    | PFunc of (*arg types*) list<PType> * (*return type*) PType
-    | RefType of Ref
-    with
-    override x.ToString() = match x with
-        | StaticType nA -> nA.QName
+    | InitialType of string
+    | Type of NamespaceDeclA
+    //| PFunc of (*arg types*) list<PType> * (*return type*) PType * IsStatic
+    with override x.ToString() = match x with
+        | Type nA -> sprintf "Type \"%s\"" nA.QName
         | _ -> fmt x
 
 and Ref(name: string, ptype:PType, reftype:RefType) =
     member x.Name = name
     member val PType = ptype with get, set
     member val RefType = reftype
-    member val ValueRef = uninitValueRef with get, set
-    member x.IsUninitialised = isUninitValueRef x.ValueRef
+    member val ValueRef:option<ValueRef> = None with get, set
 
     override x.ToString() = sprintf "Ref(%s, %s, %s)" x.Name (x.PType.ToString()) (x.RefType.ToString())
 
 and Pos(startPos:Position, endPos:Position) =
     member x.StartPos = startPos
     member x.EndPos = endPos
-    override x.ToString() = "" //sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
     static member NilPosition = {pos_fname= ""; pos_lnum = 0; pos_bol = 0; pos_cnum = 0}
     static member NilPos = Pos(Pos.NilPosition, Pos.NilPosition)
+    override x.ToString() = "" //sprintf "s(%i,%i)e(%i,%i)" x.StartPos.Line x.StartPos.Column x.EndPos.Line x.EndPos.Column
 
 and Param(name: string, ptype: PType) =
     member x.Name = name
     member val PType = ptype with get, set
-    override x.ToString() = sprintf "%s:%s" name (fmt x.PType)
+    override x.ToString() = sprintf "%s:%s" name (x.PType.ToString())
 
 
 and CIRef = 
     | ClassRef of ClassDeclA
     | InterfaceRef of InterfaceDeclA
-with
-    override x.ToString() = fmt x
+    with override x.ToString() = match x with
+        | ClassRef cA -> sprintf "ClassRef (%s)" (cA.ToString())
+        | InterfaceRef iA -> sprintf "InterfaceRef (%s)" (iA.ToString()) 
     
 
 and [<AbstractClass>] Annot(pos:Pos) =
@@ -89,20 +96,16 @@ and [<AbstractClass>] Annot(pos:Pos) =
     member val Usings:list<string> = [] with get, set
     member val Namespace = "" with get, set
     member val NamespaceDecl:Option<NamespaceDeclA> = None with get, set
-
-    override x.ToString() = fmt x.ItemObj
-        (*":" + x.Pos.ToString() +
-        ":" + fmt (List.ofSeq <| Seq.map (fun (kvp:KeyValuePair<string,Ref>) -> kvp.Value) x.Refs)*)
  
-and [<AbstractClass>] AnnotRefs<'a>(pos:Pos) = 
+and [<AbstractClass>] AnnotRefs<'k,'v when 'k:comparison>(pos:Pos) = 
     inherit Annot(pos)
-    let mutable refs:Map<string,'a> = Map.empty;
+    let mutable refs:Map<'k,'v> = Map.empty;
 
     member x.Refs = refs
-    member x.AddRef(name, ref:'a) = refs <- refs.Add(name, ref)
-    member x.AddRefs(refs:Map<string,'a>) = Map.iter (fun name ref -> x.AddRef(name, ref)) refs
+    member x.AddRef(key, ref:'v) = refs <- refs.Add(key, ref)
+    member x.AddRefs(refs:Map<'k,'v>) = Map.iter (fun key ref -> x.AddRef(key, ref)) refs
     member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
-    member x.GetRef(name) = Map.tryFind name refs
+    member x.GetRef(key) = Map.tryFind key refs
 
 
 and Expr =
@@ -111,8 +114,14 @@ and Expr =
     | ConstUnit
     | Var of string
     | Dot of ExprA * string
+    | DotInstance of ExprA * ClassDeclA
+    | DotStatic of NamespaceDeclA * ClassDeclA
     | Binop of string * ExprA * ExprA
     | Call of ExprA * list<ExprA>
+    | CallLocal of ExprA * list<ExprA>
+    | CallStatic of ClassDeclA * list<ExprA>
+    | CallInstance of ClassDeclA * ExprA * list<ExprA>
+    | CallVirtual of InterfaceDeclA * ExprA * list<ExprA>
     | Assign of ExprA * ExprA
     | DeclVar of string * (*Assign*) ExprA
     | Print of ExprA
@@ -124,22 +133,24 @@ and Expr =
     | Nop
 
 and ExprA(item:Expr, pos:Pos) =
-    inherit AnnotRefs<Ref>(pos)    
+    inherit AnnotRefs<string,Ref>(pos)    
 
     member val Item = item with get, set
     override x.ItemObj = x.Item :> obj
 
     member val PType = Undef with get, set
 
-    override x.ToString() = base.ToString() + match x.PType with
+    override x.ToString() = "Expr" + match x.PType with
         | Undef -> ""
-        | _ -> ":" + fmt x.PType
+        | _ -> ":" + x.PType.ToString()
 
 
 and ClassDecl =
-    | ClassVar of Name * Visibility * IsStatic * PType ref * ExprA
+    | ClassVar  of Name * Visibility * IsStatic * PType ref * ExprA
     | ClassProc of Name * Visibility * IsStatic * list<Param> ref * (*returnType*) PType ref * (*body*) ExprA
-    
+    with override x.ToString() = match x with
+        | ClassVar  (n, vis, isStatic, ptype, _) -> sprintf "ClassVar (%s, %s, %s, %s)" n (vis.ToString()) (isStatic.ToString()) (ptype.ToString())
+        | ClassProc (n, vis, isStatic, params_, retType, _) -> sprintf "ClassProc (%s, %s, %s, %s, %s)" n (vis.ToString()) (isStatic.ToString()) (listTS !params_) ((!retType).ToString())
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
     inherit Annot(pos)
@@ -148,9 +159,8 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
     member val Offset = -1 with get, set
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
-    member val FuncType = new TypeRef(nativeint 0xDEF) with get, set
-
-    member val EnclosingNDA:option<NamespaceDeclA> = None with get, set
+    member val FuncType:option<TypeRef> = None with get, set
+    member val IsCtor = false with get, set
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -158,9 +168,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
-        | ClassProc (_, _, _, params_, returnType, _) ->
-            let ptypeParams = List.map (fun (p:Param) -> p.PType) !params_
-            PFunc (ptypeParams, !returnType)
+        | ClassProc (_, _, _, params_, returnType, _) -> !returnType
 
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _, _) -> vis
@@ -174,9 +182,13 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
         | ClassVar (_, _, isStatic, _, _) -> isStatic
         | ClassProc (_, _, isStatic, _, _, _) -> isStatic
 
+    override x.ToString() = x.Item.ToString()
+
 
 and InterfaceDecl =
     | InterfaceProc of (*name*) Name * (*params*) list<Param> * (*returnType*) PType ref
+    with override x.ToString() = match x with
+        | InterfaceProc (n, params_, returnType) -> sprintf "InterfaceProc (%s, %s, %s)" n (listTS params_) ((!returnType).ToString())
     
 
 and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
@@ -184,12 +196,8 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member x.Item = item
     override x.ItemObj = upcast item
 
-    member val EnclosingNDA:option<NamespaceDeclA> = None with get, set
-
     member x.PType = match x.Item with
-        | InterfaceProc (_, params_, returnType) ->
-            let ptypeParams = List.map (fun (p:Param) -> p.PType) params_
-            PFunc (ptypeParams, !returnType)
+        | InterfaceProc (_, params_, returnType) -> !returnType
 
     member x.Name = match x.Item with
         | InterfaceProc (name, _, _) -> name
@@ -197,20 +205,26 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member x.Params = match x.Item with
         | InterfaceProc (_, params_, _) -> params_
 
+    override x.ToString() = x.Item.ToString()
+
+
 and NamespaceDecl =
-    | Class of Name * Visibility * IsStruct * list<InterfaceName> ref * list<ClassDeclA>
-    | Interface of Name * Visibility * list<InterfaceName> ref * list<InterfaceDeclA>
+    | Class of Name * Visibility * IsStruct * list<PType> ref * list<ClassDeclA>
+    | Interface of Name * Visibility * list<PType> ref * list<InterfaceDeclA>
+    with override x.ToString() =  match x with
+        | Class     (n, vis, isS, ifaces, _) -> sprintf "Class (%s, %s, %s, %s)" n (vis.ToString()) (isS.ToString()) (listTS !ifaces)
+        | Interface (n, vis, ifaces, _) -> sprintf "Interface (%s, %s, %s)" n (vis.ToString()) (listTS !ifaces)
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
-    inherit AnnotRefs<CIRef>(pos)
+    inherit AnnotRefs<NPKey,CIRef>(pos)
 
     let bindPointerType t = Option.bind (fun t -> Some <| pointerType t 0u) t
 
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
 
-    member val CtorRef:Ref = Ref(null, Undef, StaticProcRef) with get, set
-    member val Interfaces:list<NamespaceDeclA> = [] with get, set
+    member x.CtorCA = match x.GetRef(ProcKey (x.Name, [])) with Some (ClassRef cA) -> cA
+
     member val AllInterfaces:list<NamespaceDeclA> = [] with get, set
     member val ImplementedBy:list<NamespaceDeclA> = [] with get, set
 
@@ -218,20 +232,22 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member val StaticType:option<TypeRef> = None with get, set
     member val VTableType:option<TypeRef> = None with get, set
 
+    [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.InstancePointerType:option<TypeRef> = bindPointerType x.InstanceType
+    [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.StaticPointerType:option<TypeRef> = bindPointerType x.StaticType
+    [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.VTablePointerType:option<TypeRef> = bindPointerType x.VTableType
 
     member val IsBuiltin = false with get, set
-    member val BuiltinCreator = (fun () -> ()) with get, set
 
     member x.IsClass = match x.Item with
         | Class _ -> true
         | Interface _ -> false
 
     member x.Visibility = match x.Item with
-            | Class (_, vis, _, _, _) -> vis
-            | Interface (_, vis, _, _) -> vis
+        | Class (_, vis, _, _, _) -> vis
+        | Interface (_, vis, _, _) -> vis
 
     member x.Name = match x.Item with
         | Class (name, _, _, _, _) -> name
@@ -241,15 +257,21 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         | Class (_, _, isStruct, _, _) -> isStruct
         | Interface (_, _, _, _) -> NotStruct
 
-    member x.InterfaceNames = match x.Item with
+    member x.InterfacePTypes = match x.Item with
         | Class (_, _, _, ifaces, _) -> !ifaces
         | Interface (_, _, ifaces, _) -> !ifaces
 
+    member x.Interfaces = List.map (fun ptype -> match ptype with Type nA -> nA) x.InterfacePTypes
+
+    [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.InterfaceDeclAs = match x.Item with
         | Interface (_, _, _, iAs) -> iAs
-        | _ -> failwithf "Can't " 
+        | _ -> failwithf "Can't get InterfaceDecls for anything but an interface" 
 
+    [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.AllInterfaceProcs = concatMap (fun (nA:NamespaceDeclA) -> nA.InterfaceDeclAs) x.AllInterfaces
+
+    override x.ToString() = x.Item.ToString()
 
 
 type TopDecl =
@@ -276,17 +298,18 @@ type NDA = NamespaceDeclA
 
 
 let userTypeToString ptype = match ptype with
-    | UserType s -> s
-    | _ -> failwithf "Not a UserType"
+    | Type nA -> nA.QName
+    | _ -> failwithf "Not a Type: %s" <| ptype.ToString()
+
+let ptypeToNA ptype = match ptype with
+    | Type nA -> nA
+    | _ -> failwithf "Not a Type: %s" <| ptype.ToString()
 
 let paramsToPtype (params_:list<Param>) =
     List.map (fun (p:Param) -> p.PType) params_
 
 let paramsToPtypeString (params_:list<Param>) =
     List.map userTypeToString <| paramsToPtype params_
-
-let paramsReturnTypeToPtype (params_:list<Param>) returnType =
-    PFunc (paramsToPtype params_, returnType)
 
 let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
     namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
@@ -295,12 +318,16 @@ let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
 
 let isQualifiedName (name:string) = name.Contains("::")
 
-type NPKey = string * list<PType>
-let nameParamsKey name params_ : NPKey = (name, paramsToPtype params_)
+let namePTypesKey name ptypes : NPKey = ProcKey (name, List.map userTypeToString ptypes)
+let nameParamsKey name params_ : NPKey = ProcKey (name, paramsToPtypeString params_)
 let interfaceNPKey (iA:InterfaceDeclA) = nameParamsKey iA.Name iA.Params
 let classNPKey (cA:ClassDeclA) = match cA.Item with
     | ClassProc (name, _, _, params_, _, _) -> nameParamsKey name !params_
-    | _ -> failwithf "Must call on ClassProc only"
+    | ClassVar (name, _, _, _, _) -> VarKey name
+
+let NPKeyPretty npk = match npk with
+    | VarKey s -> s
+    | ProcKey (name, ptypeStrs) -> sprintf "%s(%s)" name <| System.String.Join(", ", ptypeStrs)
 
 let cpPrefix x = "System::" + x 
 
@@ -310,11 +337,18 @@ type CommonPtype =
     | Bool
     | String
 
-let commonPtype x = UserType (cpPrefix <| match x with
-    | Unit   -> "Unit"
-    | Int i  -> "Int" + i.ToString()
-    | Bool   -> "Bool"
-    | String -> "String")
+let commonPtypeStr x =
+    match x with
+        | Unit   -> "Unit"
+        | Int i  -> "Int" + i.ToString()
+        | Bool   -> "Bool"
+        | String -> "String"
+    |> cpPrefix
+
+let commonPtype globals x =
+    commonPtypeStr x    
+    |> fun x -> Map.find x globals
+    |> Type
 
 
 let getGlobal globals namespace_ (usings:seq<string>) name =
@@ -387,7 +421,7 @@ let rec lastInSeqAndPrev (eA:ExprA) =
 let isLastInSeqRet eA = isReturn <| lastInSeq eA
 
 type GlobalStore = Map<string, NamespaceDeclA>
-type BinopStore = Map<Name * list<string>, list<ClassDeclA>>
+type BinopStore = Map<NPKey, list<ClassDeclA>>
 
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =
     member x.Name = name
@@ -411,8 +445,13 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | ConstUnit -> leafFunc exprA
         | Var n -> leafFunc exprA
         | Dot (eA, name) -> bf1 eA
+        | DotStatic (nA, cA) -> leafFunc exprA
+        | DotInstance (eA, cA) -> bf1 eA
         | Binop (n, l, r) -> bf [l; r]
         | Call (feA, exprAs) -> bf <| feA :: exprAs
+        | CallStatic (cA, eAs) -> bf eAs
+        | CallInstance (cA, feA, eAs) -> bf (feA :: eAs)
+        | CallVirtual (cA, feA, eAs) -> bf (feA :: eAs)
         | Assign (lvalue, innerExprA) -> bf [lvalue; innerExprA]
         | DeclVar (name, assignA) -> bf1 assignA
         | Print e -> bf1 e

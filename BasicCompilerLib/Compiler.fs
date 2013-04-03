@@ -69,7 +69,7 @@ let compile (text:string) =
 
         let parsed = [parse textLines; parseStdlib ()]
         let globals, annotated = Annotate.annotate parsed
-        Check.check annotated
+        Check.check globals annotated
         let llvmModule = Gen.gen globals annotated
         CompilerResult(textLines, [], llvmModule)
     with

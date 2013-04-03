@@ -7,7 +7,6 @@ open LLVM.Core
 open LLVM.Generated.Core
 open LLVM.Generated.BitWriter
 
-
 (*
 
 +-----------------+             +-------------------+        +-----------------+
@@ -31,7 +30,7 @@ let getNumFunctionParams funcvr =
     |> Array.length
 
 let getInstPointTy (globals:GlobalStore) ptype =
-    let nA = Map.find (match ptype with UserType s -> s) globals
+    let nA = ptypeToNA ptype
     match nA.IsStruct with
         | Struct -> nA.InstanceType.Value
         | NotStruct -> nA.InstancePointerType.Value
@@ -49,10 +48,9 @@ let genClassVarLoad bldr this offset =
     buildLoad bldr ptr ""
 
 
-let getLLVMType (globals:GlobalStore) ptype =
+let getLLVMType ptype =
     match ptype with
-        | UserType name -> (Map.find name globals).InstanceType.Value
-        | StaticType nA -> nA.StaticType.Value
+        | Type nA -> nA.InstanceType.Value
         | _ -> failwithf "Can't find llvm type for %s" <| ptype.ToString()
 
    
@@ -75,7 +73,7 @@ let genClassStructure globals (nA:NamespaceDeclA) =
                             | ClassVar (name, vis, iS, ptype, eA) when iS = isStatic ->
                                 // i+1 as we have to include the vtable pointer/ptr to class name
                                 cA.Offset <- i+1
-                                Some <| getLLVMType globals !ptype
+                                Some <| getLLVMType !ptype
                             | _ -> None) cAs
                     
                 // Get rid of the Nones
@@ -109,8 +107,8 @@ let genClassProcStub globals mo (cA:ClassDeclA) =
             let func = addFunction mo (changeSRO cA.QName) funcTy
 
             // Set func value ref for class decl
-            cA.Ref.ValueRef <- func
-            cA.FuncType <- funcTy
+            cA.Ref.ValueRef <- Some func
+            cA.FuncType <- Some funcTy
 
 let genClassProcStubs globals mo (nA:NamespaceDeclA) =
     match nA.Item with
@@ -129,41 +127,6 @@ let genMalloc externs bldr ty =
     let mem = buildCall bldr mallocFunc [|llSize|] "malloc"
     buildBitCast bldr mem (pointerType ty 0u) ""
 
-let genLvalue (globals:GlobalStore) bldr (eA:ExprA) =
-    let getGlobal = getGlobal globals eA.Namespace eA.Usings
-
-    let getGlobalsRef globalName refName =
-        match getGlobal globalName with
-            | None ->  failwith "Can't find global %s" refName
-            | Some nA -> match nA.GetRef(refName) with
-                | None -> failwithf "Can't find ref %s for global %s" refName globalName
-                | Some r -> (nA, r)
-
-    match eA.Item with
-        | Var n ->
-            // See if a ref, if not it's a
-            match eA.GetRef(n) with
-                | Some r -> r.ValueRef
-                | None -> match getGlobal n with
-                    | None -> failwith <| "Can't find global " + n
-                    | Some nA -> uninitValueRef
-        
-        | Dot (leA, n) ->
-            match leA.PType with
-                | StaticType nA ->
-                    match nA.GetRef(n) with
-                        | Some (ClassRef cA) -> match cA.Item with
-                            | ClassProc _ -> cA.Ref.ValueRef
-                            | ClassVar _ -> failwithf "unimplemented loading from static vars"
-                    
-                | UserType typeName ->
-                    let nA, ref = getGlobalsRef typeName n
-                    match ref with
-                        | ClassRef cA -> match cA.Item with
-                            | ClassProc _ -> cA.Ref.ValueRef
-                
-                    
-
 let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
     let genE = genExpr globals func bldr
     match eA.Item with
@@ -174,76 +137,60 @@ let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
             match eA.GetRef(n) with
                 | None -> failwithf "Can't find ref %s" n
                 | Some r -> match r.RefType with
-                    | LocalRef -> buildLoad bldr r.ValueRef r.Name
-                    | StaticProcRef -> r.ValueRef
+                    | LocalRef -> buildLoad bldr r.ValueRef.Value r.Name
+                    | StaticProcRef -> r.ValueRef.Value
                     //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "")
-        | Dot (leA, n) ->
-            // Check to see if the LHS is a StaticType, if so just return the correct thing
-            match leA.PType with
-                | StaticType nA -> failwithf "unimplemented 2152357238"
-                | UserType typeName ->
-                    let this = genE leA
-                    let nA:NamespaceDeclA = Map.find typeName globals
-                    match nA.GetRef(n).Value with
-                        | ClassRef cA -> match cA.Item with
-                            | ClassVar _ -> genClassVarLoad bldr this cA.Offset
-                | _ -> failwithf "Can only perform dot operation on static or instance type"
 
-        | Binop _ ->
-            failwithf "Binop has not been lowered to Call at codegen time - compiler fail"
+        | Dot _   -> failwithf "Compiler fail: This Dot should have been lowered to a more specific Dot in the annotation stage"
+        | Binop _ -> failwithf "Compiler fail: This Binop should have been lowered to a CallStatic in the annotation stage"
+        | Call _  -> failwithf "Compiler fail: This Call should have been lowered to a more specific Call in the annotation stage"
 
-        | Call (eA, args) ->
-            let argEs = List.map genE args
+        | DotStatic (nA, cA) ->
+            // Static var
+            failwithf "unimplemented 452784"
 
-            let funcvr, fixedArgs = match eA.Item with 
-                | Var n ->
-                    let ref = eA.GetRef(n).Value
-                    let funcvr = match ref.RefType with
-                        | InstanceProcRef | StaticProcRef -> ref.ValueRef
-                        | _ -> failwith "Can only call a method"
+        | DotInstance (eA, cA) ->
+            let e = genE eA
+            genClassVarLoad bldr e cA.Offset
 
-                    let fixedArgs = match ref.RefType with
-                        | StaticProcRef -> argEs
-                        | InstanceProcRef ->
-                            let thisLoc = eA.GetRef("this").Value.ValueRef
-                            buildLoad bldr thisLoc "this" :: argEs
+        | CallStatic (cA, args) ->
+            let argEs = Seq.map genE args |> Array.ofSeq
+            let funcvr = cA.Ref.ValueRef.Value
+            buildCall bldr funcvr argEs ""
 
-                    (funcvr, fixedArgs)
+        | CallInstance (cA, feA, args) ->
+            let argEs = List.map genE args 
+            let thisE = genE feA
+            let fixedArgs = List.toArray (thisE :: argEs)
 
-                | Dot (leA, n) ->
-                    let getProcVR (nA:NamespaceDeclA) = match nA.GetRef(n).Value with
-                        | ClassRef cA -> match cA.Item with
-                            | ClassProc _ -> (cA.Ref.ValueRef, cA.IsStatic)
-                            | _ -> failwith "Can only call methods"
-                        | _ -> failwithf "unimplemented 11746238462194"
+            let funcvr = cA.Ref.ValueRef.Value
+            buildCall bldr funcvr fixedArgs ""
 
-                    match leA.PType with
-                        | StaticType nA -> 
-                            let funcvr, _ = getProcVR nA
-                            (funcvr, argEs)
-
-                        | UserType typeName ->
-                            let nA = Map.find typeName globals
-                            let funcvr, isStatic = getProcVR nA
-                            let fixedArgs = match isStatic with
-                                | Static -> argEs
-                                | NotStatic ->
-                                    // Put this on the front
-                                    genE leA :: argEs
-                            (funcvr, fixedArgs)
-
-            buildCall bldr funcvr (Array.ofList fixedArgs) ""
+        | CallVirtual (iA, feA, args) ->
+            failwithf "Unimplemented 04752"            
 
         | DeclVar (name, assignA) ->
             genE assignA
-        | Assign (lvalue, eA) ->
-            let addr = genLvalue globals bldr lvalue
-            let e = genE eA
+
+        | Assign (lvalue, right) ->
+            let addr = match lvalue.Item with
+                | Var n -> match eA.GetRef(n) with
+                    | Some ref -> ref.ValueRef.Value
+                | DotStatic (nA, cA) ->
+                    failwithf "unimplemented 347853"
+                | DotInstance (dotEA, cA) ->
+                    let dotE = genExpr globals func bldr dotEA
+                    genClassVarGEP bldr dotE cA.Offset    
+
+            let e = genE right
             buildStore bldr e addr
+
         | Return eA ->
             buildRet bldr <| genE eA
+
         | ReturnVoid ->
             buildRetVoid bldr
+
         | If (test, then_, else_) ->
             let thenRet = isLastInSeqRet then_
             let elseRet = isLastInSeqRet else_
@@ -268,9 +215,11 @@ let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
             else
                 positionBuilderAtEnd bldr ifcont
             uninitValueRef
+
         | Seq (eA1, eA2) ->
             genE !eA1 |> ignore
             genE !eA2
+
         | Nop ->
             uninitValueRef
 
@@ -279,16 +228,16 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
         | ClassVar _ -> ()
         | ClassProc (name, vis, isStatic, params_, retType, eA) ->
             use bldr = new Builder()
-            let func = cA.Ref.ValueRef
+            let func = cA.Ref.ValueRef.Value
 
             // Basic block
             let entry = appendBasicBlock func "entry"
             positionBuilderAtEnd bldr entry
 
             // Allocate space for local variables
-            Seq.iter (fun (r:Ref) -> r.ValueRef <- buildAlloca bldr (getInstPointTy globals r.PType) r.Name) eA.LocalVars
+            Seq.iter (fun (r:Ref) -> r.ValueRef <- Some <| buildAlloca bldr (getInstPointTy globals r.PType) r.Name) eA.LocalVars
 
-            let paramsTy = getParamTypes cA.FuncType
+            let paramsTy = getParamTypes cA.FuncType.Value
 
             // Get the value refs for the function params and set the function expr's ref's valuerefs
             Seq.iteri (fun i (p:Param) ->
@@ -296,7 +245,7 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
                 setValueName llvmParam p.Name
                 let stackSpace = buildAlloca bldr paramsTy.[i] p.Name
                 buildStore bldr llvmParam stackSpace |> ignore
-                (eA.GetRef(p.Name) |> Option.get).ValueRef <- stackSpace) !params_
+                (eA.GetRef(p.Name) |> Option.get).ValueRef <- Some stackSpace) !params_
 
             // Execute procedure body
             let expr = genExpr globals func bldr eA
@@ -331,7 +280,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
             buildRet bldr this |> ignore
 
             // Set the ref for the ctor to the built function
-            nA.CtorRef.ValueRef <- ctorFunc
+            nA.CtorCA.Ref.ValueRef <- Some ctorFunc
 
             // TODO: Static class vars
 
@@ -385,7 +334,7 @@ let genMain mo (program:seq<NamespaceDeclA>) =
     match cAmain with
         | None -> failwithf "No public static main() method found"
         | Some cA ->
-            buildCall bldr cA.Ref.ValueRef [||] "" |> ignore
+            buildCall bldr cA.Ref.ValueRef.Value [||] "" |> ignore
 
     // Add terminator
     buildRet bldr (genConstInt i32 0UL) |> ignore

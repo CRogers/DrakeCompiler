@@ -18,7 +18,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
     /////////////
     let lowerBinopToCall (eA:ExprA) = match eA.Item with
         | Binop (n, l, r) ->
-            let key = (n, List.map (fun (eA:ExprA) -> userTypeToString eA.PType) [l; r])
+            let key = namePTypesKey n <| List.map (fun (eA:ExprA) -> eA.PType) [l; r]
             let value = match Map.tryFind key binops with
                 | Some v -> v
                 | None -> failwithf "Cannot find an appropriate static method to call for binop %s" <| fmt eA.Item
@@ -31,9 +31,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             let cA = Seq.head value
 
             // Now change Binop into a Call
-            let var = ExprA(Var (cA.EnclosingNDA.Value.QName), Pos.NilPos)
-            let dot = ExprA(Dot (var, cA.Name), Pos.NilPos)
-            let call = Call (dot, [l; r])
+            let call = CallStatic (cA, [l; r])
             eA.Item <- call
         | _ -> failwithf "Must call with a Binop, not a %s" <| fmt eA.Item
 
@@ -45,18 +43,14 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | Undef -> annotateTypesExpr localVars eA.Refs nextEA
             | _ -> ()
         eA.PType <- match eA.Item with
-            | ConstInt (size, _) -> commonPtype <| Int size
-            | ConstBool _        -> commonPtype Bool
-            | ConstUnit          -> commonPtype Unit
+            | ConstInt (size, _) -> commonPtype globals <| Int size
+            | ConstBool _        -> commonPtype globals Bool
+            | ConstUnit          -> commonPtype globals Unit
             | Var n ->
                 // See if it's a local ref
                 match eA.GetRef(n) with
                     | Some ref -> ref.PType
-                    | None ->
-                        // Look in globals for it
-                        match getGlobal globals eA.Namespace eA.Usings n with
-                            | Some nA -> StaticType nA
-                            | None -> failwithf "Can't find static user type %s" n
+                    | None -> failwithf "Can't find ref for %s" n
 
             | Binop (n, l, r) ->
                 aTE l
@@ -66,44 +60,103 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 aTE eA
                 eA.PType
 
-
             | Dot (dotEA, name) ->
-                // We can dot:
-                // Classes for static methods/vars
-                // Classes/Interfaces instances for procs
-                aTE dotEA
-                match dotEA.PType with
-                    // Instance
-                    | UserType typeName ->
-                        match getGlobal globals dotEA.Namespace dotEA.Usings typeName with
-                            | None -> failwithf "Cannot find class/interface %s" typeName
-                            | Some nA -> match nA.GetRef(name) with
-                                | None -> failwithf "Cannot access non existent member %s" name
-                                | Some (ClassRef cA)     -> cA.PType
-                                | Some (InterfaceRef iA) -> iA.PType
-                    // Static
-                    | StaticType nA ->
-                        match nA.GetRef(name) with
-                            | None -> failwithf "Can't access non existant static member %s" name
-                            | Some (ClassRef cA) -> match cA.IsStatic with
-                                | Static -> cA.PType
-                                | NotStatic -> failwithf "Can only call *static* classrefs"
-                            | _ -> failwithf "Can only call static class refs"
-                    | _ -> failwithf "Can't perform dot operation to get %s" name
+                // Hopefully, the Call option should have taken care of procedures, leaving only variables to do
+
+                // First see if it is a static var
+                let staticPos = match dotEA.Item with
+                    | Var n -> match dotEA.GetRef n with
+                        | None -> match getGlobal globals eA.Namespace eA.Usings n with
+                            | None -> failwithf "Cannot find class/interface %s" n
+                            | Some nA -> match nA.GetRef <| VarKey name with
+                                | None -> failwithf "Cannot find existent member %s in %s" name nA.QName
+                                | Some (ClassRef cA) -> Some <| DotStatic (nA, cA)
+                                | _ -> failwithf "Can only get static class vars"
+                        | _ -> None
+                    | _ -> None
+
+                // If it's not a static var it must be an instance var
+                let newDot = 
+                    if staticPos = None then
+                        aTE dotEA
+                        match dotEA.PType with
+                            | Type nA -> match nA.GetRef <| VarKey name with
+                                | None -> failwithf "Cannot find member %s in %s" name nA.QName
+                                | Some (ClassRef cA) -> DotInstance (dotEA, cA)
+                                | _ -> failwithf "Something has gone terribly wrong 122324234"
+                            | _ -> failwithf "Something has gone terribly wrong 86324"
+                    else
+                        staticPos.Value
+
+                eA.Item <- newDot
+                aTE eA
+                eA.PType
+
+            | DotStatic (nA, cA) -> cA.PType
+            | DotInstance (eA, cA) -> cA.PType                
 
             | Call (feA, exprAs) ->
-                aTE feA
                 Seq.iter aTE exprAs
-                let callingArgPtypes = List.map (fun (eA:ExprA) -> eA.PType) exprAs
 
-                match feA.PType with
-                    | PFunc (argTypes, returnType) -> 
-                        if not (callingArgPtypes = argTypes) then
-                            failwithf "Must call function with the right arguments!"
-                        returnType
-                    | _ ->
-                        failwithf "Can only call function types!"
-            
+                let keygen n = namePTypesKey n <| List.map (fun (eA:ExprA) -> eA.PType) exprAs                    
+
+                let staticCall typeName dotName = 
+                    let key = keygen dotName
+                    match getGlobal globals eA.Namespace eA.Usings typeName with
+                        | None -> failwithf "Cannot find the static type %s" typeName
+                        | Some nA -> match nA.GetRef(key) with
+                            | Some (ClassRef cA) ->
+                                if cA.IsStatic = NotStatic then
+                                    failwithf "Method %s in %s is not static" (NPKeyPretty key) nA.QName
+                                CallStatic (cA, exprAs)
+                            | None -> failwithf "Cannot find static method %s in %s" (NPKeyPretty key) nA.QName
+                            | _ -> failwithf "Can only call static members on classes"
+
+                let instanceCall dotEA dotName =
+                    aTE dotEA
+                    let key = keygen dotName
+                    match dotEA.PType with
+                        | Type nA -> match nA.GetRef(key) with
+                            | Some (ClassRef cA) ->
+                                if cA.IsStatic = Static then failwithf "Method %s in %s is static" (NPKeyPretty key) nA.QName
+                                CallInstance (cA, dotEA, exprAs)
+                            | Some (InterfaceRef iA) -> CallVirtual (iA, dotEA, exprAs)
+                            | None -> failwithf "No such method %s in %s" (NPKeyPretty key) nA.QName
+
+                let localCall name =
+                    let class_ = feA.NamespaceDecl.Value
+                    let key = keygen name
+                    match class_.GetRef key with
+                        | None -> failwithf "Can't find any method %s in %s" name class_.QName
+                        | Some (ClassRef cA) -> match cA.IsStatic with
+                            | Static -> CallStatic (cA, exprAs)
+                            | NotStatic ->
+                                let this = ExprA(Var "this", Pos.NilPos)
+                                CallInstance (cA, this, exprAs)
+                        | _ -> failwithf "Can only call class methods"
+
+
+                let loweredCall = match feA.Item with
+                    // See if it's a static call
+                    | Dot (dotEA, dotName) -> match dotEA.Item with
+                        | Var n -> match eA.GetRef n with
+                            | None -> staticCall n dotName
+                            | Some _ -> instanceCall dotEA dotName
+                        | _ -> instanceCall dotEA dotName
+                    | Var n -> localCall n
+                
+                eA.Item <- loweredCall
+                aTE eA
+                eA.PType
+
+            | CallStatic (cA, exprAs) -> cA.PType
+            | CallInstance (cA, feA, exprAs) -> 
+                aTE feA
+                cA.PType
+            | CallVirtual (iA, feA, exprAs) -> 
+                aTE feA
+                iA.PType         
+               
             | Assign (lvalue, innerExprA) ->
                 aTE lvalue
                 aTE innerExprA
@@ -122,9 +175,9 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 exprA.PType
             | Return exprA ->
                 aTE exprA
-                commonPtype Unit
+                commonPtype globals Unit
             | ReturnVoid ->
-                commonPtype Unit
+                commonPtype globals Unit
             | If (test, then_, else_) ->
                 aTE test
                 aTE then_
@@ -133,15 +186,15 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | While (test, body) ->
                 aTE test
                 aTE body
-                commonPtype Unit
+                commonPtype globals Unit
             | Seq (e1A, e2A) ->
                 aTE !e1A
                 // Since e2A is lexically below and and in the same scope as e1A, all 
                 // e1A's references also appear in e2A
                 annotateTypesExpr localVars (!e1A).Refs !e2A
-                commonPtype Unit
+                commonPtype globals Unit
             | Nop ->
-                commonPtype Unit
+                commonPtype globals Unit
 
 
     /////////////
@@ -153,7 +206,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 Seq.iter (fun (p:Param) -> eA.AddRef(p.Name, Ref(p.Name, p.PType, LocalRef))) !params_
                 // If an instance method add the 'this' param
                 if isStatic = NotStatic then
-                    eA.AddRef("this", Ref("this", UserType <| cA.NamespaceDecl.Value.QName, LocalRef))
+                    eA.AddRef("this", Ref("this", Type <| cA.NamespaceDecl.Value, LocalRef))
                 eA
 
         // Add ctor ref if it is a static class
@@ -162,7 +215,10 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | Static -> staticLevelRefs
 
         let localVars = new List<Ref>()
-        annotateTypesExpr localVars initRefs eA
+
+        // Only annotate the expression if not a ctor
+        if not cA.IsCtor then
+            annotateTypesExpr localVars initRefs eA
 
         eA.AddLocalVars(List.ofSeq localVars)
         cA.AddLocalVars(List.ofSeq localVars)
@@ -173,8 +229,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
         match nA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
                 // Ref for the ctor
-                let ctorRef = Ref(name, PFunc ([], UserType nA.QName), StaticProcRef)
-                nA.CtorRef <- ctorRef
+                let ctorRef = Ref(name, Type nA, StaticProcRef)
+                nA.CtorCA.Ref <- ctorRef
 
                 // Make refs for the cAs so they can reference eachother. Left for static, Right for not static
                 let classLevelRefs = 

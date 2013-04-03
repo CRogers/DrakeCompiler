@@ -12,11 +12,9 @@ open System.Collections.Generic
 let annotateInterfaces (globals:GlobalStore) (program:list<NDA>) =
 
     ///////////
-    let setNAsForIfaces (nA:NDA) =
-        nA.Interfaces <- List.map (fun name ->
-            let iface = Map.find name globals
+    let setImplementedBy (nA:NDA) =
+        for iface in nA.Interfaces do
             iface.ImplementedBy <- nA :: iface.ImplementedBy
-            iface) nA.InterfaceNames
 
     //////////
     let checkNotImplementingSelf (nA:NDA) =
@@ -65,7 +63,7 @@ let annotateInterfaces (globals:GlobalStore) (program:list<NDA>) =
             Util.joinMap ", " (fun (iAList:list<IDA>) ->
                 let iA = List.head iAList
                 let func = sprintf "%s(%s)" iA.Name <| System.String.Join(", ", paramsToPtypeString iA.Params)
-                let from = Util.joinMap ", " (fun (iA:IDA) -> iA.EnclosingNDA.Value.QName) iAList
+                let from = Util.joinMap ", " (fun (iA:IDA) -> iA.NamespaceDecl.Value.QName) iAList
                 sprintf "%s from %s in %s" func from nA.QName) dups
             |> failwithf "Multiple definitions of an interface member function exist: %s"
     
@@ -79,7 +77,7 @@ let annotateInterfaces (globals:GlobalStore) (program:list<NDA>) =
 
     let classes, ifaces = Util.splitSeq (fun (nA:NDA) -> nA.IsClass) program
 
-    Seq.iter setNAsForIfaces program
+    Seq.iter setImplementedBy program
     Seq.iter checkNotImplementingSelf ifaces
     Seq.iter checkNotImplementingClass program
     Seq.iter checkDuplicateInterfaces program

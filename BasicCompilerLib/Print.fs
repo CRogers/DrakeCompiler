@@ -34,4 +34,7 @@ and fmt(x):string =
     else  
         x.ToString()
 
+let listTS<'a> (xs:seq<'a>) = sprintf "[%s]" <| System.String.Join("; ", Seq.map (fun x -> x.ToString()) xs)
+let refTS<'a> (x:ref<'a>) = (!x).ToString()
+
 let printfmt x = Console.WriteLine(fmt x)

@@ -13,72 +13,83 @@ and make a default map of references that can be added for everything
 
 let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
 
+    //////////
     let getQName namespace_ usings name =
         // See if it is a qualified name first
         if isQualifiedName name then
             // Look up in globals
-            match Map.tryFindKey (fun key value -> key = name) globals with
+            match Map.tryFind name globals with
+                | Some nA -> nA
                 | None -> failwithf "Couldn't find %s in globals" name
-                | Some x -> x
         else
             // Look in local place first then usings
             let placesToLook = Seq.append [namespace_] usings
-            let gs = globals
-            match Seq.tryPick (fun nspace -> Map.tryFindKey (fun key value -> 
-                key = qualifiedName nspace name []) globals) placesToLook with
-                | Some qname -> qname
-                | None -> match Map.tryFindKey (fun key value -> key = name) globals with
-                    | None -> failwithf "Couldn't find %s in globals" name
-                    | Some x -> x                  
 
+            let lookInNamespace nspace =
+                Map.tryPick (fun key value ->
+                    if key = qualifiedName nspace name [] then Some value
+                    else None) globals
 
-    let rec newPType nspace usings ptype = match ptype with
+            match Seq.tryPick lookInNamespace placesToLook with
+                | Some nA -> nA
+                | None -> failwithf "Couldn't find %s in globals" name           
+
+    //////////
+    let newPType nspace usings ptype = match ptype with
             | Undef -> Undef
-            | UserType name -> UserType <| getQName nspace usings name
-            | PFunc (args, ret) -> PFunc (List.map (newPType nspace usings) args, newPType nspace usings ret)
+            | InitialType name -> Type <| getQName nspace usings name
+            | Type nA -> failwithf "%s is trying to be expanded - this shouldn't happen at this stage" nA.Name
 
+    //////////
     let expandParamsQName nspace usings (params_:seq<Param>) =
         Seq.iter (fun (p:Param) -> p.PType <- newPType nspace usings p.PType) params_
 
-
-    let annotateCIRefsClass (enclosingClass:NDA) (cA:CDA) =
-        let qname = enclosingClass.QName + "." + cA.Name
-        cA.EnclosingNDA <- Some enclosingClass
+    //////////
+    let annotateCIRefsClass (cA:CDA) =
+        let qname = cA.NamespaceDecl.Value.QName + "." + cA.Name
 
         match cA.Item with
             | ClassVar (name, vis, isStatic, ptype, eA) ->
                 ptype := newPType cA.Namespace cA.Usings !ptype
                 cA.QName <- qname
-                (name, ClassRef cA)
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
                 // Check to see that proc name isn't the same as the classname
-                if name = enclosingClass.Name then failwithf "Can't use %s as the name for class %s - must be different" name name
+                if name = cA.NamespaceDecl.Value.Name then failwithf "Can't use %s as the name for class %s - must be different" name name
                 // Type expansion
                 expandParamsQName cA.Namespace cA.Usings !params_
                 returnType := newPType cA.Namespace cA.Usings !returnType
                 cA.QName <- qname
-                (name, ClassRef cA)
+                
+        (classNPKey cA, ClassRef cA)
 
-
-    let annotateCIRefsInterface (enclosingInterface:NDA) iname (iA:IDA) =
-        iA.EnclosingNDA <- Some enclosingInterface
-
+    //////////
+    let annotateCIRefsInterface iname (iA:IDA) =
         match iA.Item with
             | InterfaceProc (name, params_, returnType) ->
                 expandParamsQName iA.Namespace iA.Usings params_
                 returnType := newPType iA.Namespace iA.Usings !returnType
                 iA.QName <- qualifiedName iA.Namespace iname [name]
-                (name, InterfaceRef iA)
+        
+        (interfaceNPKey iA, InterfaceRef iA)
 
-
+    //////////
     let annotateCIRefsNamespace (nA:NDA) =
         // We need to go deeper - add CIRefs for classes/interfaces
         let refs = match nA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
-                Seq.map (annotateCIRefsClass nA) cAs
+                ifaces := List.map (newPType nA.Namespace nA.Usings) !ifaces
+                let refs = Seq.map annotateCIRefsClass cAs
+                
+                // Add a ctor ref
+                let c = ClassProc (name, Private, Static, ref [], ref <| Type nA, ExprA(Nop, Pos.NilPos))
+                let cA = ClassDeclA (c, Pos.NilPos)
+                cA.IsCtor <- true
+                let ctorRef = (classNPKey cA, ClassRef cA)
+                Seq.append [ctorRef] refs
+
             | Interface (name, vis, ifaces, iAs) ->
-                ifaces := List.map (getQName nA.Namespace nA.Usings) !ifaces
-                Seq.map (annotateCIRefsInterface nA name) iAs
+                ifaces := List.map (newPType nA.Namespace nA.Usings) !ifaces
+                Seq.map (annotateCIRefsInterface name) iAs
 
         nA.AddRefs(refs)
 
@@ -89,6 +100,7 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
 
 let getGlobalRefs (program:Program) =
 
+    //////////
     let getGlobalRefsNamespace namespace_ (nA:NamespaceDeclA) =
         // Identify sub things with which class they are in
         iterAST foldASTNamespaceDecl (fun (annot:Annot) -> annot.NamespaceDecl <- Some nA) nA |> ignore
@@ -97,7 +109,7 @@ let getGlobalRefs (program:Program) =
         nA.QName <- qname
         (qname, nA)
 
-
+    //////////
     let getGlobalRefsTop (tA:TopDeclA) =
         match tA.Item with
             | Namespace (name, nAs) ->
@@ -105,7 +117,7 @@ let getGlobalRefs (program:Program) =
                 iterAST foldASTTopDecl (fun (annot:Annot) -> annot.Namespace <- name) tA
                 Seq.map (getGlobalRefsNamespace name) nAs
     
-
+    //////////
     let getGlobalRefsCU (cu:CompilationUnit) =
         // Find all the usings and collect them together
         let usings = Seq.fold (fun usingList (declA:TopDeclA) -> match declA.Item with

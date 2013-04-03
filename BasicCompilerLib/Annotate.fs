@@ -27,7 +27,7 @@ let fixNonStaticFunctionParams (nAs:list<NamespaceDeclA>) =
     let classProcs = getClassDecls nAs
     Seq.iter (fun (cA:ClassDeclA) -> match cA.Item with
         | ClassProc (_, _, NotStatic, params_, _, _) ->
-            params_ := Param("this", UserType <| qualifiedName cA.Namespace cA.NamespaceDecl.Value.Name []) :: !params_
+            params_ := Param("this", Type <| cA.NamespaceDecl.Value) :: !params_
         | _ -> ()) classProcs
 
 
@@ -35,12 +35,17 @@ let findBinops (nAs:list<NamespaceDeclA>) =
     getClassDecls nAs
     |> Seq.map (fun cA -> match cA.Item with
         | ClassProc (name, _, Static, params_, _, _) when (!params_).Length = 2 ->
-            Some ((name, paramsToPtypeString !params_), cA)
+            Some (classNPKey cA, cA)
         | _ -> None)
     |> Util.getSomes
     |> Seq.groupBy fst
-    |> Seq.map (fun (nsl, seqNslCA) -> (nsl, List.ofSeq <| Seq.map snd seqNslCA))
+    |> Seq.map (fun (npkey, seqNslCA) -> (npkey, List.ofSeq <| Seq.map snd seqNslCA))
     |> Map.ofSeq
+
+type Test = 
+    | Foo
+    | Bar
+    with override x.ToString() = "cat"
 
 let annotate (program:Program) =
     let globals = getGlobalRefs program

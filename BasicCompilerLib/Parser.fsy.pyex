@@ -116,9 +116,9 @@ ifaceImplements:
 
 ifaceImplements2:
     | scopeResolvedName
-        { [v \$1] }
+        { [InitialType <| v \$1] }
     | scopeResolvedName COMMA ifaceImplements2
-        { v \$1 :: \$3 }
+        { (InitialType <| v \$1) :: \$3 }
 
 namespaceDecls:
     | /* empty */
@@ -158,9 +158,7 @@ possibleType:
 
 ptype:
     | scopeResolvedName
-        { UserType (v \$1) }
-    | LPAR ptypeList RPAR ARROW ptype
-        { PFunc (\$2, \$5) }
+        { InitialType (v \$1) }
 
 ptypeList:
     | /* empty */
@@ -170,7 +168,7 @@ ptypeList:
 
 possibleReturnType:
     | /* empty */
-        { commonPtype Unit }
+        { InitialType "System::Unit" }
     | COLON ptype
         { \$2 }
 

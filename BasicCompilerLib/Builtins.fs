@@ -28,23 +28,24 @@ let builtinGenInts (globals:GlobalStore) =
     let genInt (size:int) =
         let nA = getIntNA globals size
         let buildOp (name, buildFunc) =
-            let cA = match nA.GetRef(name) with Some (ClassRef cA) -> cA
-            let funcvr = cA.Ref.ValueRef
+            let matchingRefs = Map.filter (fun k v -> match k with ProcKey (n, _) -> n = name | _ -> false) nA.Refs |> Map.toSeq
+            for (_, ClassRef cA) in matchingRefs do
+                let funcvr = cA.Ref.ValueRef.Value
 
-            use bldr = new Builder()
-            let entry = appendBasicBlock funcvr "entry"
-            positionBuilderAtEnd bldr entry
+                use bldr = new Builder()
+                let entry = appendBasicBlock funcvr "entry"
+                positionBuilderAtEnd bldr entry
 
-            let param n =
-                let x = getParam funcvr n
-                buildBitCast bldr x nA.InstanceType.Value ""
+                let param n =
+                    let x = getParam funcvr n
+                    buildBitCast bldr x nA.InstanceType.Value ""
 
-            let a = param 0u
-            let b = param 1u
+                let a = param 0u
+                let b = param 1u
             
-            buildFunc bldr a b ""
-            |> buildRet bldr
-            |> ignore
+                buildFunc bldr a b ""
+                |> buildRet bldr
+                |> ignore
 
         [
             ("+", buildAdd);
@@ -60,10 +61,11 @@ let builtinGenInts (globals:GlobalStore) =
     Seq.iter genInt [8;16;32;64]
 
 let builtinGenBool (globals:GlobalStore) =
-    let nA = Map.find "System::Bool" globals
+    let bool = commonPtypeStr Bool
+    let nA = Map.find bool globals
     let buildOp (name, buildFunc) =
-        let cA = match nA.GetRef(name) with Some (ClassRef cA) -> cA
-        let funcvr = cA.Ref.ValueRef
+        let cA = match nA.GetRef(ProcKey (name, [bool; bool])) with Some (ClassRef cA) -> cA
+        let funcvr = cA.Ref.ValueRef.Value
 
         use bldr = new Builder()
         let entry = appendBasicBlock funcvr "entry"
@@ -88,8 +90,8 @@ let builtinGenConsole externs (globals:GlobalStore) =
     let numFmt = Map.find "numFmt" externs
 
     let nA = Map.find "System::Console" globals
-    let printlnCA = match nA.GetRef("println") with Some (ClassRef cA) -> cA
-    let println = printlnCA.Ref.ValueRef
+    let printlnCA = match nA.GetRef(ProcKey ("println", [commonPtypeStr (Int 32)])) with Some (ClassRef cA) -> cA
+    let println = printlnCA.Ref.ValueRef.Value
 
     let entry = appendBasicBlock println "entry"
     use bldr = new Builder()

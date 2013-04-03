@@ -8,13 +8,13 @@ let getReturnExpr = function
     | Return e -> e
     | _ -> failwith "Need return stmt"
 
-let returnVoidA (refs:Map<string,Ref>) =
+let returnVoidA globals (refs:Map<string,Ref>) =
     let rvA = ExprA(ReturnVoid, Pos.NilPos)
-    rvA.PType <- commonPtype Unit
+    rvA.PType <- commonPtype globals Unit
     rvA.AddRefs(refs)
     rvA
 
-let checkReturns (program:list<NamespaceDeclA>) =
+let checkReturns globals (program:list<NamespaceDeclA>) =
     let rec isBlocked eA =
         let foundIsBlocked (eA:ExprA) = match eA.Item with
             | ReturnVoid
@@ -34,7 +34,7 @@ let checkReturns (program:list<NamespaceDeclA>) =
 
     let innerPart (cA:ClassDeclA) = match cA.Item with
         // Case 1: Return type is void
-        | ClassProc (name, vis, isStatic, params_, ptype, eA) when !ptype = commonPtype Unit ->
+        | ClassProc (name, vis, isStatic, params_, ptype, eA) when !ptype = commonPtype globals Unit ->
             // Check there are no returns of the wrong type
             iterAST foldASTExpr (fun (annot:Annot) ->
                 let eA = annot :?> ExprA
@@ -47,8 +47,8 @@ let checkReturns (program:list<NamespaceDeclA>) =
                 let last = lastInSeq eA
                 let newExprAForLast = ExprA(last.Item, Pos.NilPos)
                 newExprAForLast.PType <- last.PType
-                last.Item <- Seq(ref newExprAForLast, ref <| returnVoidA last.Refs)
-                last.PType <- commonPtype Unit
+                last.Item <- Seq(ref newExprAForLast, ref <| returnVoidA globals last.Refs)
+                last.PType <- commonPtype globals Unit
 
         // Case 2: Return type isn't void
         | ClassProc (name, vis, isStatic, params_, ptype, eA) ->
@@ -67,5 +67,5 @@ let checkReturns (program:list<NamespaceDeclA>) =
     getClassDecls program
     |> Seq.iter innerPart
 
-let check (program:list<NamespaceDeclA>) =
-    checkReturns program
+let check globals (program:list<NamespaceDeclA>) =
+    checkReturns globals program
