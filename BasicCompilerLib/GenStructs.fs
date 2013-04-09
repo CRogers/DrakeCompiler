@@ -103,7 +103,7 @@ let createVTableType vtableType ifaceType (nAs:list<NDA>) =
 
 
 // Make stub function that takes an Interface* as it's this and casts to the correct User::Type* and calls the correct function
-let createIfaceProcStub mo ifaceType (cA:CDA) = match cA.Item with
+let createIfaceProcStub globals mo ifaceType (cA:CDA) = match cA.Item with
     | ClassProc (_, _, _, params_, retType, _) ->
         let retTy = getInstPointTy !retType
         // We need to change the this param to be of Interface type rather than it's concrete type
@@ -128,15 +128,20 @@ let createIfaceProcStub mo ifaceType (cA:CDA) = match cA.Item with
         //let firstParamCastInt = buildIntCast bldr firstParam i32 ""
         //let firstParamCast = buildPointerCast bldr firstParamCastInt (getInstPointTy (List.head !params_).PType) ""
         let allParams = List.toArray (firstParamCast :: otherParams)
-
-        buildCall bldr cA.Ref.ValueRef.Value allParams ""
-        |> buildRet bldr
+        
+        let callResult = buildCall bldr cA.Ref.ValueRef.Value allParams ""
+        
+        // We have to do a special ret void is the call is a return
+        if !retType = commonPtype globals Unit then
+            buildRetVoid bldr
+        else
+            buildRet bldr callResult
         |> ignore
 
         func
 
 
-let createVTable mo ifaceType numIProcs (nA:NDA) = match nA.Item with
+let createVTable globals mo ifaceType numIProcs (nA:NDA) = match nA.Item with
     | Class (_, _, _, _, cAs) ->
         let vtableType = nA.VTableType.Value
 
@@ -148,7 +153,7 @@ let createVTable mo ifaceType numIProcs (nA:NDA) = match nA.Item with
             match cA.DefiningMethod with
                 | None -> ()
                 | Some iA ->
-                    let stub = createIfaceProcStub mo ifaceType cA
+                    let stub = createIfaceProcStub globals mo ifaceType cA
                     cA.IfaceProcStub <- Some stub
                     arr.[iA.GlobalOffset] <- stub
 
@@ -158,12 +163,11 @@ let createVTable mo ifaceType numIProcs (nA:NDA) = match nA.Item with
         let g = addGlobal mo vtableType <| "VTable___" + changeSRO nA.QName
         setInitializer g cs
         let gep = constGEP g [|genConstInt i32 0UL|]
-        //let casted = constBitCast gep (pointerType vtableType 0u)
         nA.VTable <- Some gep
     | _ -> ()
 
 
-let genStructs context mo (program:list<NDA>) =
+let genStructs globals context mo (program:list<NDA>) =
     let numIProcs = numberInterfaceProcs program
     let vtableType = createInitVTableType context
     let ifaceType = createInterfaceType context vtableType
@@ -174,7 +178,7 @@ let genStructs context mo (program:list<NDA>) =
     createClassProcStubs mo program
 
     createVTableType vtableType ifaceType program
-    Seq.iter (createVTable mo ifaceType numIProcs) program
+    Seq.iter (createVTable globals mo ifaceType numIProcs) program
 
     pointerType ifaceType 0u
 

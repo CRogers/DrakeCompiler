@@ -56,7 +56,7 @@ let checkReturns globals (program:list<NamespaceDeclA>) =
             iterAST foldASTExpr (fun (annot:Annot) ->
                 let eA = annot :?> ExprA
                 match eA.Item with
-                    | ReturnVoid -> failwithf "Must return %s not void" <| (!ptype).ToString()
+                    | ReturnVoid -> failwithf "Must return %s not void in %s" ((!ptype).ToString()) cA.QName
                     | Return reA -> if not (reA.PType = !ptype) then failwithf "Must return %s not %s" ((!ptype).ToString()) (reA.ToString())
                     | _ -> ()) eA
 

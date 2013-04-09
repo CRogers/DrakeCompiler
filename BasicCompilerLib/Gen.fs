@@ -287,7 +287,7 @@ let gen (globals:GlobalStore) (program:list<NamespaceDeclA>) =
     Builtins.builtinGenConsole externs globals
 
     // Build the structures required to store the information
-    let pIfaceTy = genStructs context mo nonBuiltins
+    let pIfaceTy = genStructs globals context mo nonBuiltins
 
     // Build the class/interface operations themselves
     Seq.iter (genNamespace externs mo pIfaceTy) nonBuiltins
