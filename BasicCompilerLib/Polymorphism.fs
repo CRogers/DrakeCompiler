@@ -27,7 +27,7 @@ let getBestOverload (nA:NDA) (name:string) (argTypeNAs:list<NDA>) =
 
     let bestResult =
         results
-        |> Seq.minBy fst
+        |> Seq.maxBy fst
         |> snd
         |> Seq.map fst
         |> List.ofSeq

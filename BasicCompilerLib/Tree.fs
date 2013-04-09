@@ -118,7 +118,6 @@ and Expr =
     | DotStatic of NamespaceDeclA * ClassDeclA
     | Binop of string * ExprA * ExprA
     | Call of ExprA * list<ExprA>
-    | CallLocal of ExprA * list<ExprA>
     | CallStatic of ClassDeclA * list<ExprA>
     | CallInstance of ClassDeclA * ExprA * list<ExprA>
     | CallVirtual of InterfaceDeclA * ExprA * list<ExprA>
@@ -170,7 +169,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
 
     member x.PType = match x.Item with
         | ClassVar (_, _, _, ptype, _) -> !ptype
-        | ClassProc (_, _, _, params_, returnType, _) -> !returnType
+        | ClassProc (_, _, _, _, returnType, _) -> !returnType
 
     member x.Visibility = match x.Item with
         | ClassVar (_, vis, _, _, _) -> vis
@@ -179,6 +178,10 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member x.Name = match x.Item with
         | ClassVar (name, _, _, _, _) -> name
         | ClassProc (name, _, _, _, _, _) -> name
+
+    member x.Params = match x.Item with
+        | ClassProc (_, _, _, params_, _, _) -> !params_
+        | _ -> failwithf "Can only get params for ClassProcs"
 
     member x.IsStatic = match x.Item with
         | ClassVar (_, _, isStatic, _, _) -> isStatic

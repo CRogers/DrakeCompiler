@@ -34,8 +34,15 @@ let genMalloc externs bldr (nA:NDA) =
     genClassVarStore bldr obj 0 nA.VTable.Value |> ignore
     obj
 
-let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
-    let genE = genExpr globals func bldr
+let rec genExpr pIfaceTy func bldr (eA:ExprA) =
+    let genE = genExpr pIfaceTy func bldr
+
+    let genArgsWithCasts eAs params_ =
+        Seq.map2 (fun eA (p:Param) -> match (ptypeToNA p.PType).Item with
+            | Class _ -> genE eA
+            | Interface _ -> buildBitCast bldr (genE eA) pIfaceTy "") eAs params_
+        |> List.ofSeq
+
     match eA.Item with
         | ConstUnit -> failwithf "unimplemented 98235674"
         | ConstInt (s, i) -> genConstInt (intSizeToTy s) (uint64 i)
@@ -61,12 +68,12 @@ let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
             genClassVarLoad bldr e cA.Offset
 
         | CallStatic (cA, args) ->
-            let argEs = Seq.map genE args |> Array.ofSeq
+            let argEs = genArgsWithCasts args cA.Params |> Array.ofSeq
             let funcvr = cA.Ref.ValueRef.Value
             buildCall bldr funcvr argEs ""
 
         | CallInstance (cA, feA, args) ->
-            let argEs = List.map genE args 
+            let argEs = genArgsWithCasts args cA.Params
             let thisE = genE feA
             let fixedArgs = List.toArray (thisE :: argEs)
 
@@ -74,7 +81,20 @@ let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
             buildCall bldr funcvr fixedArgs ""
 
         | CallVirtual (iA, feA, args) ->
-            failwithf "Unimplemented 04752"            
+            let argEs = genArgsWithCasts args iA.Params
+            let this = genE feA
+            // We must cast this to an Interface* for the VTable functions
+            let casted = buildBitCast bldr this pIfaceTy ""
+
+            // Get concrete stub out of the vtable struct
+            let vtableGEP = buildStructGEP bldr casted 0u ""
+            let vtable = buildLoad bldr vtableGEP ""
+            let funcGEP = buildStructGEP bldr vtable 0u ""
+            let func = buildLoad bldr funcGEP ""
+            
+            // Call vfunc
+            let fixedArgs = List.toArray (casted :: argEs)
+            buildCall bldr func fixedArgs ""
 
         | DeclVar (name, assignA) ->
             genE assignA
@@ -86,7 +106,7 @@ let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
                 | DotStatic (nA, cA) ->
                     failwithf "unimplemented 347853"
                 | DotInstance (dotEA, cA) ->
-                    let dotE = genExpr globals func bldr dotEA
+                    let dotE = genExpr pIfaceTy func bldr dotEA
                     genClassVarGEP bldr dotE cA.Offset    
 
             let e = genE right
@@ -130,7 +150,7 @@ let rec genExpr (globals:GlobalStore) func bldr (eA:ExprA) =
         | Nop ->
             uninitValueRef
 
-let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
+let genClass mo pIfaceTy (cA:ClassDeclA) =
     match cA.Item with
         | ClassVar _ -> ()
         | ClassProc (name, vis, isStatic, params_, retType, eA) ->
@@ -155,12 +175,12 @@ let genClass (globals:GlobalStore) mo (cA:ClassDeclA) =
                 (eA.GetRef(p.Name) |> Option.get).ValueRef <- Some stackSpace) !params_
 
             // Execute procedure body
-            let expr = genExpr globals func bldr eA
+            let expr = genExpr pIfaceTy func bldr eA
 
             ()
 
 
-let genNamespace globals externs mo (nA:NamespaceDeclA) =
+let genNamespace externs mo pIfaceTy (nA:NamespaceDeclA) =
     match nA.Item with
         | Class (name, vis, isStruct, ifaces, cAs) ->
             // Make object allocation ctor func
@@ -176,7 +196,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
             
             let initClassVars (cA:ClassDeclA) = match cA.Item with
                 | ClassVar (name, vis, NotStatic, ptype, eA) ->
-                    let expr = genExpr globals ctorFunc bldr eA
+                    let expr = genExpr pIfaceTy ctorFunc bldr eA
                     genClassVarStore bldr this cA.Offset expr |> ignore
                 | _ -> ()
 
@@ -192,7 +212,7 @@ let genNamespace globals externs mo (nA:NamespaceDeclA) =
             // TODO: Static class vars
 
             // Gen the code for the procedures
-            Seq.iter (genClass globals mo) cAs
+            Seq.iter (genClass mo pIfaceTy) cAs
         | Interface (name, vis, ifaces, iAs) -> ()//Seq.iter genInterface iAs
 
 
@@ -267,10 +287,10 @@ let gen (globals:GlobalStore) (program:list<NamespaceDeclA>) =
     Builtins.builtinGenConsole externs globals
 
     // Build the structures required to store the information
-    genStructs context mo nonBuiltins
+    let pIfaceTy = genStructs context mo nonBuiltins
 
     // Build the class/interface operations themselves
-    Seq.iter (genNamespace globals externs mo) nonBuiltins
+    Seq.iter (genNamespace externs mo pIfaceTy) nonBuiltins
 
     // Generate the initial main function
     genMain mo program

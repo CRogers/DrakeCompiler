@@ -176,3 +176,5 @@ let genStructs context mo (program:list<NDA>) =
     createVTableType vtableType ifaceType program
     Seq.iter (createVTable mo ifaceType numIProcs) program
 
+    pointerType ifaceType 0u
+
