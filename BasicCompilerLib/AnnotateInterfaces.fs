@@ -62,15 +62,17 @@ let annotateInterfaces (globals:GlobalStore) (program:list<NDA>) =
         if dups.Length > 0 then
             Util.joinMap ", " (fun (iAList:list<IDA>) ->
                 let iA = List.head iAList
-                let func = sprintf "%s(%s)" iA.Name <| System.String.Join(", ", paramsToPtypeString iA.Params)
+                let func = ifaceSignaturePretty iA
                 let from = Util.joinMap ", " (fun (iA:IDA) -> iA.NamespaceDecl.Value.QName) iAList
                 sprintf "%s from %s in %s" func from nA.QName) dups
             |> failwithf "Multiple definitions of an interface member function exist: %s"
     
     //////////
-    let checkProcsAreImplemented (classNA:NDA) =
-        for iA in classNA.AllInterfaceProcs do
-            ()
+    let checkProcsAreImplemented (class_:NDA) =
+        for iA in class_.AllInterfaceProcs do
+            match class_.GetRef <| interfaceNPKey iA with
+                | Some (ClassRef cA) -> cA.DefiningMethod <- Some iA
+                | _ -> failwithf "Method %s that is defined in %s is not implemented in %s" (ifaceSignaturePretty iA) iA.NamespaceDecl.Value.QName class_.QName
 
 
 

@@ -1,6 +1,7 @@
 ﻿module LLVMTypes
 
 open LLVM.Generated.Core
+open LLVM.Core
 
 let i1 = int1Type ()
 let i8 = int8Type ()
@@ -44,5 +45,6 @@ let intSizeToTy s = match s with
 
 
 let uninitValueRef = new ValueRef(nativeint 0xDED)
-
 let isUninitValueRef (vr:ValueRef) = vr.Ptr.ToInt32() = 0xDED
+
+let uninitTypeRef = new TypeRef(nativeint 0xDED)

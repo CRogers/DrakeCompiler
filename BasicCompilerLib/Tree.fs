@@ -45,7 +45,7 @@ type NPKey =
     | ProcKey of string * list<string>
     with override x.ToString() = fmt x
 
-type PType = 
+and PType = 
     | Undef
     | InitialType of string
     | Type of NamespaceDeclA
@@ -161,6 +161,8 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType:option<TypeRef> = None with get, set
     member val IsCtor = false with get, set
+    member val DefiningMethod:option<InterfaceDeclA> = None with get, set
+    member val IfaceProcStub:option<ValueRef> = None with get, set
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -195,6 +197,9 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     inherit Annot(pos)
     member x.Item = item
     override x.ItemObj = upcast item
+
+    member val GlobalOffset = -1 with get, set
+    member val FuncType:option<TypeRef> = None with get, set
 
     member x.PType = match x.Item with
         | InterfaceProc (_, params_, returnType) -> !returnType
@@ -238,6 +243,8 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.StaticPointerType:option<TypeRef> = bindPointerType x.StaticType
     [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.VTablePointerType:option<TypeRef> = bindPointerType x.VTableType
+
+    member val VTable:option<ValueRef> = None with get, set
 
     member val IsBuiltin = false with get, set
 
@@ -329,6 +336,8 @@ let NPKeyPretty npk = match npk with
     | VarKey s -> s
     | ProcKey (name, ptypeStrs) -> sprintf "%s(%s)" name <| System.String.Join(", ", ptypeStrs)
 
+let ifaceSignaturePretty (iA:IDA) = sprintf "%s(%s)" iA.Name <| System.String.Join(", ", paramsToPtypeString iA.Params)
+
 let cpPrefix x = "System::" + x 
 
 type CommonPtype =
@@ -375,6 +384,12 @@ let getNamespaceDecls (program:Program) =
 let getClassDecls (nAs:seq<NamespaceDeclA>) =
     nAs
     |> Seq.map (fun (nA:NamespaceDeclA) -> match nA.Item with Class (_, _, _, _, cAs) -> Some cAs | _ -> None)
+    |> Util.getSomes
+    |> Seq.concat
+
+let getInterfaceDecls (nAs:seq<NamespaceDeclA>) =
+    nAs
+    |> Seq.map (fun (nA:NamespaceDeclA) -> match nA.Item with Interface (_, _, _, iAs) -> Some iAs | _ -> None)
     |> Util.getSomes
     |> Seq.concat
 

@@ -26,29 +26,19 @@ namespace I {
 	}
 
 	class Program {
-		static stroke(s: Strokable) {
+		/*static stroke(s: Strokable) {
 			Console.println(s.stroke(10));
 		}
 
+		static stroke(s: Int32) {
+			// This should never be called
+			Console.println(99999);
+		}*/
+
 		public static main() {
-			stroke(Kitten.new());
-			stroke(Cat.new());
+			/*stroke(Kitten.new());
+			stroke(Cat.new());*/
+			Console.println(10);
 		}
 	}
-/*
-	implicit interface Object on () {
-		equals(x: Object):Bool default {
-			return false;
-		}
-
-		hashCode():Int default {
-			// Behind the scenes magic - memory address? Hashcodes of things below?
-			return 0;
-		}
-
-		toString():String default {
-			// Behind the scenes magic 
-			return "";
-		}
-	}*/
 }

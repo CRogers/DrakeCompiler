@@ -4,6 +4,7 @@ open Tree
 open Builtins
 open Print
 open Util
+open Polymorphism
 open System.Collections.Generic
 
 (*
@@ -21,7 +22,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             let key = namePTypesKey n <| List.map (fun (eA:ExprA) -> eA.PType) [l; r]
             let value = match Map.tryFind key binops with
                 | Some v -> v
-                | None -> failwithf "Cannot find an appropriate static method to call for binop %s" <| fmt eA.Item
+                | None -> failwithf "Cannot find an appropriate static method to call for binop %s" <| eA.Item.ToString()
 
             // Check to see ww have only one possible thing to call
             if Seq.length value > 1 then
@@ -33,7 +34,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             // Now change Binop into a Call
             let call = CallStatic (cA, [l; r])
             eA.Item <- call
-        | _ -> failwithf "Must call with a Binop, not a %s" <| fmt eA.Item
+        | _ -> failwithf "Must call with a Binop, not a %s" <| eA.Item.ToString()
 
 
     /////////////
@@ -98,43 +99,35 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | Call (feA, exprAs) ->
                 Seq.iter aTE exprAs
 
-                let keygen n = namePTypesKey n <| List.map (fun (eA:ExprA) -> eA.PType) exprAs                    
+                let argTypeNAs = List.map (fun (eA:ExprA) -> ptypeToNA eA.PType) exprAs
 
                 let staticCall typeName dotName = 
-                    let key = keygen dotName
                     match getGlobal globals eA.Namespace eA.Usings typeName with
                         | None -> failwithf "Cannot find the static type %s" typeName
-                        | Some nA -> match nA.GetRef(key) with
-                            | Some (ClassRef cA) ->
+                        | Some nA -> match getBestOverload nA dotName argTypeNAs with
+                            | ClassRef cA ->
                                 if cA.IsStatic = NotStatic then
-                                    failwithf "Method %s in %s is not static" (NPKeyPretty key) nA.QName
+                                    failwithf "Method %s in %s is not static" (NPKeyPretty <| classNPKey cA) nA.QName
                                 CallStatic (cA, exprAs)
-                            | None -> failwithf "Cannot find static method %s in %s" (NPKeyPretty key) nA.QName
-                            | _ -> failwithf "Can only call static members on classes"
 
                 let instanceCall dotEA dotName =
                     aTE dotEA
-                    let key = keygen dotName
                     match dotEA.PType with
-                        | Type nA -> match nA.GetRef(key) with
-                            | Some (ClassRef cA) ->
-                                if cA.IsStatic = Static then failwithf "Method %s in %s is static" (NPKeyPretty key) nA.QName
+                        | Type nA -> match getBestOverload nA dotName argTypeNAs with
+                            | ClassRef cA ->
+                                if cA.IsStatic = Static then failwithf "Method %s in %s is static" (NPKeyPretty <| classNPKey cA) nA.QName
                                 CallInstance (cA, dotEA, exprAs)
-                            | Some (InterfaceRef iA) -> CallVirtual (iA, dotEA, exprAs)
-                            | None -> failwithf "No such method %s in %s" (NPKeyPretty key) nA.QName
+                            | InterfaceRef iA -> CallVirtual (iA, dotEA, exprAs)
 
                 let localCall name =
                     let class_ = feA.NamespaceDecl.Value
-                    let key = keygen name
-                    match class_.GetRef key with
-                        | None -> failwithf "Can't find any method %s in %s" name class_.QName
-                        | Some (ClassRef cA) -> match cA.IsStatic with
+                    match getBestOverload class_ name argTypeNAs with
+                        | ClassRef cA -> match cA.IsStatic with
                             | Static -> CallStatic (cA, exprAs)
                             | NotStatic ->
                                 let this = ExprA(Var "this", Pos.NilPos)
                                 CallInstance (cA, this, exprAs)
                         | _ -> failwithf "Can only call class methods"
-
 
                 let loweredCall = match feA.Item with
                     // See if it's a static call
