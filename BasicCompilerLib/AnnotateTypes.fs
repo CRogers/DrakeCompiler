@@ -94,7 +94,17 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 eA.PType
 
             | DotStatic (nA, cA) -> cA.PType
-            | DotInstance (eA, cA) -> cA.PType                
+            | DotInstance (eA, cA) -> cA.PType
+            
+            | Cast (ptype, castEA) ->
+                let toNA = ptypeToNA !ptype
+                aTE castEA
+                let fromNA = ptypeToNA castEA.PType
+
+                if not <| canCastTo fromNA toNA then
+                    failwithf "Cannot cast %s to %s" fromNA.QName toNA.QName
+
+                !ptype
 
             | Call (feA, exprAs) ->
                 Seq.iter aTE exprAs

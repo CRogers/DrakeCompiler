@@ -227,6 +227,8 @@ $for(binop in binops)\
     | expr3 $(binop) expr3
         { eaa (Binop (v \$2, \$1, \$3)) \$1 \$3 }
 $endfor\
+    | LPAR scopeResolvedName RPAR expr4
+        { eba (Cast (ref <| InitialType (v \$2), \$4)) \$1 \$4 } 
     | expr4
         { \$1 }
 

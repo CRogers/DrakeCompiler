@@ -5,3 +5,6 @@ namespace K {
 	interface B : A {}
 	interface C : B {}
 }
+
+/*<<<
+>>>*/

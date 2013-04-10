@@ -67,6 +67,10 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             let e = genE eA
             genClassVarLoad bldr e cA.Offset
 
+        | Cast (ptype, eA) ->
+            let e = genE eA
+            buildBitCast bldr e (getInstPointTy !ptype) ""
+
         | CallStatic (cA, args) ->
             let argEs = genArgsWithCasts args cA.Params |> Array.ofSeq
             let funcvr = cA.Ref.ValueRef.Value

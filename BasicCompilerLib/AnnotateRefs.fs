@@ -45,13 +45,22 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
         Seq.iter (fun (p:Param) -> p.PType <- newPType nspace usings p.PType) params_
 
     //////////
+    let expandParamsExpr (eA:ExprA) =
+        iterAST foldASTExpr (fun (annot:Annot) ->
+            let eA = annot :?> ExprA
+            match eA.Item with
+                | Cast (ptype, castEA) -> ptype := newPType eA.Namespace eA.Usings !ptype
+                | _ -> ()) eA
+
+    //////////
     let annotateCIRefsClass (cA:CDA) =
         let qname = cA.NamespaceDecl.Value.QName + "." + cA.Name
 
-        match cA.Item with
+        let eA = match cA.Item with
             | ClassVar (name, vis, isStatic, ptype, eA) ->
                 ptype := newPType cA.Namespace cA.Usings !ptype
                 cA.QName <- qname
+                eA
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
                 // Check to see that proc name isn't the same as the classname
                 if name = cA.NamespaceDecl.Value.Name then failwithf "Can't use %s as the name for class %s - must be different" name name
@@ -59,6 +68,9 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
                 expandParamsQName cA.Namespace cA.Usings !params_
                 returnType := newPType cA.Namespace cA.Usings !returnType
                 cA.QName <- qname
+                eA
+
+        expandParamsExpr eA
                 
         (classNPKey cA, ClassRef cA)
 

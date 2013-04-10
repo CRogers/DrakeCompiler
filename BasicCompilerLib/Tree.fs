@@ -117,6 +117,7 @@ and Expr =
     | DotInstance of ExprA * ClassDeclA
     | DotStatic of NamespaceDeclA * ClassDeclA
     | Binop of string * ExprA * ExprA
+    | Cast of PType ref * ExprA
     | Call of ExprA * list<ExprA>
     | CallStatic of ClassDeclA * list<ExprA>
     | CallInstance of ClassDeclA * ExprA * list<ExprA>
@@ -466,6 +467,7 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | DotStatic (nA, cA) -> leafFunc exprA
         | DotInstance (eA, cA) -> bf1 eA
         | Binop (n, l, r) -> bf [l; r]
+        | Cast (ptype, eA) -> bf1 eA
         | Call (feA, exprAs) -> bf <| feA :: exprAs
         | CallStatic (cA, eAs) -> bf eAs
         | CallInstance (cA, feA, eAs) -> bf (feA :: eAs)

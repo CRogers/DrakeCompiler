@@ -2,7 +2,15 @@
 
 open Tree
 
+
+let canCastTo (fromNA:NDA) toNA =
+    Seq.exists (fun nA -> nA = toNA) fromNA.AllInterfaces
+
+
 let getBestOverload (nA:NDA) (name:string) (argTypeNAs:list<NDA>) =
+
+    // Format method as a string for error reporting
+    let fmtMethod (args:seq<string>) = sprintf "%s(%s)" name <| System.String.Join(", ", args)
 
     // Get all procs which have the same name
     let procArgsSeq = 
@@ -11,29 +19,43 @@ let getBestOverload (nA:NDA) (name:string) (argTypeNAs:list<NDA>) =
         |> Map.toSeq
         |> Seq.map (fun (ProcKey (_, args), _) -> args)
 
+    // If there are no args with that name, error
+    if Seq.length procArgsSeq = 0 then
+        failwithf "No method %s could be found in %s" name nA.QName
+
     // Score 1 if the arg is an interface
     // Score 2 if the arg is the exact object
     // score -65536 if wrong
-    let results = Seq.groupBy snd <| seq {
+    let results = Seq.groupBy fst <| seq {
         for procArgs in procArgsSeq do
-            yield procArgs, seq {
-                for (testNA, procArg) in Seq.zip argTypeNAs procArgs do
-                    yield (if procArg = testNA.QName then 2
-                    elif List.exists (fun (iface:NDA) -> iface.QName = procArg) testNA.AllInterfaces then 1
-                    else -65536)                
-            }
-            |> Seq.sum
+            let score = 
+                seq {
+                    for (testNA, procArg) in Seq.zip argTypeNAs procArgs do
+                        yield (if procArg = testNA.QName then Some 2
+                        elif List.exists (fun (iface:NDA) -> iface.QName = procArg) testNA.AllInterfaces then Some 1
+                        else None)
+                }
+                |> Seq.fold (fun state xo -> match state with
+                    | None -> None
+                    | Some sum -> match xo with 
+                        | None -> None
+                        | Some x -> Some (sum + x)) (Some 0)
+
+            match score with
+                | None -> ()
+                | Some sc -> yield (sc, procArgs)
     }
+
+    // No results mean no possibles with matching arg types
+    if Seq.length results = 0 then
+        failwithf "No method %s with correct args could be found in %s" name nA.QName
 
     let bestResult =
         results
         |> Seq.maxBy fst
         |> snd
-        |> Seq.map fst
+        |> Seq.map snd
         |> List.ofSeq
-
-    // Format method as a string for error reporting
-    let fmtMethod (args:seq<string>) = sprintf "%s(%s)" name <| System.String.Join(", ", args)
 
     let argTypeStrs = seq { for argNA in argTypeNAs do yield argNA.QName }
 
