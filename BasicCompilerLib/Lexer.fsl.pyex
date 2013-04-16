@@ -38,7 +38,7 @@ $py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE")])\
 
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY"), ("[", "LSQUARE"), ("]", "RSQUARE")])\
 $py(defs+=[(":", "COLON"), (";", "SEMI"), ("=", "EQUALS")])\
-$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO")])\
+$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO"), ("\\", "BACKSLASH")])\
 
 }
 

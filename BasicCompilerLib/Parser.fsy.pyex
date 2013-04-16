@@ -77,49 +77,6 @@ topLevelDecls:
     | NAMESPACE scopeResolvedName LCURLY namespaceDecls RCURLY topLevelDecls
         { tbb (Namespace (v \$2, \$4)) \$1 \$3 :: \$6 }
 
-scopeResolvedName:
-    | IDENT
-        { \$1 }
-    | IDENT SRO scopeResolvedName
-        { (markers (p \$1) (p \$3), v \$1 + "::" + v \$3) }
-
-visibility:
-    | /* empty */
-        { Private }
-    | PRIVATE
-        { Private }
-    | PUBLIC
-        { Public }
-
-static_:
-    | /* empty */
-        { NotStatic }
-    | STATIC
-        { Static }
-
-visibilityStatic:
-    | /* empty */
-        { (Private, NotStatic) }
-
-classOrStruct:
-    | STRUCT
-        { Struct }
-    | CLASS
-        { NotStruct }
-
-ifaceImplements:
-    | /* empty */
-        { [] }
-    | COLON ifaceImplements2
-        { \$2 }
-    
-
-ifaceImplements2:
-    | scopeResolvedName
-        { [InitialType <| v \$1] }
-    | scopeResolvedName COMMA ifaceImplements2
-        { (InitialType <| v \$1) :: \$3 }
-
 namespaceDecls:
     | /* empty */
         { [] }
@@ -142,49 +99,6 @@ classDecls:
     | visibility static_ identOrBinop LPAR params RPAR possibleReturnType LCURLY expr0OrNop RCURLY classDecls
         { cba (ClassProc (v \$3, \$1, \$2, ref \$5, ref \$7, \$9)) (p \$3) \$9 :: \$11 }
 
-identOrBinop:
-    | IDENT
-        { \$1 }
-$for(binop in binops)\
-    | $(binop)
-        { \$1 }
-$endfor\
-
-possibleType:
-    | /* empty */
-        { Undef }
-    | ptype
-        { \$1 }
-
-ptype:
-    | scopeResolvedName
-        { InitialType (v \$1) }
-
-ptypeList:
-    | /* empty */
-        { [] }
-    | ptype COMMA ptypeList
-        { \$1 :: \$3 }
-
-possibleReturnType:
-    | /* empty */
-        { InitialType "System::Unit" }
-    | COLON ptype
-        { \$2 }
-
-params:
-    | /* empty */
-        { [] }
-    | IDENT COLON ptype
-        { [Param(v \$1, \$3)] }
-    | IDENT COLON ptype COMMA params
-        { Param(v \$1, \$3) :: \$5 }
-
-expr0OrNop:
-    | /* empty */
-        { nop }
-    | expr0
-        { \$1 }
 
 expr0:
     | expr1
@@ -259,6 +173,89 @@ expr5:
         { eab (Dot (\$1, v \$3)) \$1 (p \$3) }
     | LPAR expr3 RPAR
         { \$2 }
+
+
+visibility:
+    | /* empty */
+        { Private }
+    | PRIVATE
+        { Private }
+    | PUBLIC
+        { Public }
+
+static_:
+    | /* empty */
+        { NotStatic }
+    | STATIC
+        { Static }
+
+classOrStruct:
+    | STRUCT
+        { Struct }
+    | CLASS
+        { NotStruct }
+
+scopeResolvedName:
+    | IDENT
+        { \$1 }
+    | IDENT SRO scopeResolvedName
+        { (markers (p \$1) (p \$3), v \$1 + "::" + v \$3) }
+
+ifaceImplements:
+    | /* empty */
+        { [] }
+    | COLON ifaceImplements2
+        { \$2 }    
+
+ifaceImplements2:
+    | scopeResolvedName
+        { [InitialType <| v \$1] }
+    | scopeResolvedName COMMA ifaceImplements2
+        { (InitialType <| v \$1) :: \$3 }
+
+identOrBinop:
+    | IDENT
+        { \$1 }
+$for(binop in binops)\
+    | $(binop)
+        { \$1 }
+$endfor\
+
+possibleType:
+    | /* empty */
+        { Undef }
+    | ptype
+        { \$1 }
+
+ptype:
+    | scopeResolvedName
+        { InitialType (v \$1) }
+
+ptypeList:
+    | /* empty */
+        { [] }
+    | ptype COMMA ptypeList
+        { \$1 :: \$3 }
+
+possibleReturnType:
+    | /* empty */
+        { InitialType "System::Unit" }
+    | COLON ptype
+        { \$2 }
+
+params:
+    | /* empty */
+        { [] }
+    | IDENT COLON ptype
+        { [Param(v \$1, \$3)] }
+    | IDENT COLON ptype COMMA params
+        { Param(v \$1, \$3) :: \$5 }
+
+expr0OrNop:
+    | /* empty */
+        { nop }
+    | expr0
+        { \$1 }
 
 
 argList:
