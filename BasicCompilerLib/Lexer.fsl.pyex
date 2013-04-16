@@ -34,11 +34,11 @@ $py(defs+=[("true", "TRUE"), ("false", "FALSE"), ("start", "START")])\
 $py(defs+=[("if", "IF"), ("then", "THEN"), ("else", "ELSE"), ("while", "WHILE"), ("do", "DO"), ("var", "VAR")])\
 $py(defs+=[("namespace", "NAMESPACE"),("class", "CLASS"), ("struct", "STRUCT"), ("interface", "INTERFACE")])\
 $py(defs+=[("using", "USING"), ("static", "STATIC"), ("constructor", "CONSTRUCTOR")])\
-$py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE")])\
+$py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE"), ("where", "WHERE")])\
 
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY"), ("[", "LSQUARE"), ("]", "RSQUARE")])\
 $py(defs+=[(":", "COLON"), (";", "SEMI"), ("=", "EQUALS")])\
-$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO"), ("\\", "BACKSLASH")])\
+$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO"), ("\\\\", "BACKSLASH")])\
 
 }
 

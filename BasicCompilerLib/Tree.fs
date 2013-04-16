@@ -40,6 +40,7 @@ type Visibility =
     | Public
     with override x.ToString() = fmt x
 
+
 type NPKey = 
     | VarKey of string
     | ProcKey of string * list<string>
@@ -48,6 +49,7 @@ type NPKey =
 and PType = 
     | Undef
     | InitialType of string
+    | ParamedType of PType * PType list
     | Type of NamespaceDeclA
     //| PFunc of (*arg types*) list<PType> * (*return type*) PType * IsStatic
     with override x.ToString() = match x with
@@ -74,6 +76,12 @@ and Param(name: string, ptype: PType) =
     member val PType = ptype with get, set
     override x.ToString() = sprintf "%s:%s" name (x.PType.ToString())
 
+and Constraint = Param
+
+and ITemplate = interface
+    abstract TypeParams:list<string> with get, set
+    abstract TypeConstraints:list<Constraint> with get, set
+    end
 
 and CIRef = 
     | ClassRef of ClassDeclA
@@ -164,6 +172,10 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val DefiningMethod:option<InterfaceDeclA> = None with get, set
     member val IfaceProcStub:option<ValueRef> = None with get, set
 
+    interface ITemplate with
+        member val TypeParams:list<string> = [] with get, set
+        member val TypeConstraints:list<Constraint> = [] with get, set
+
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
         | ClassProc _ -> true
@@ -204,6 +216,10 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
 
     member val GlobalOffset = -1 with get, set
     member val FuncType:option<TypeRef> = None with get, set
+
+    interface ITemplate with
+        member val TypeParams:list<string> = [] with get, set
+        member val TypeConstraints:list<Constraint> = [] with get, set
 
     member x.PType = match x.Item with
         | InterfaceProc (_, params_, returnType) -> !returnType
@@ -251,6 +267,10 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member val VTable:option<ValueRef> = None with get, set
 
     member val IsBuiltin = false with get, set
+
+    interface ITemplate with
+        member val TypeParams:list<string> = [] with get, set
+        member val TypeConstraints:list<Constraint> = [] with get, set
 
     member x.IsClass = match x.Item with
         | Class _ -> true
