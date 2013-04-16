@@ -164,6 +164,8 @@ possConstraints:
 params:
     | /* empty */
         { [] }
+    | IDENT COLON ptype
+        { [Param(v \$1, \$3)] }
     | IDENT COLON ptype COMMA params
         { Param(v \$1, \$3) :: \$5 }
 
