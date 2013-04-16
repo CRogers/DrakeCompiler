@@ -211,6 +211,8 @@ classDecls:
         { [] }
     | visibility static_ VAR IDENT COLON possType EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
+    | visibility static_ VAR IDENT COLON possType SEMI classDecls
+        { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, nop)) \$3 \$7 :: \$8 }
     | visibility static_ identOrBinop possTypeParams LPAR params RPAR possReturnType possConstraints LCURLY expr0OrNop RCURLY classDecls
         {   (cbb (ClassProc (v \$3, \$1, \$2, ref \$6, ref \$8, \$11)) (p \$3) \$10, \$13)
             ||> applyTypeParamsConstraints \$4 \$9
