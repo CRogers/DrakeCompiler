@@ -11,7 +11,7 @@ namespace I {
 		}
 
 		public static new():Kitten {
-			return Kitten();
+			return ctor();
 		}
 	}
 
@@ -21,7 +21,7 @@ namespace I {
 		}
 
 		public static new():Cat {
-			return Cat();
+			return ctor();
 		}
 	}
 

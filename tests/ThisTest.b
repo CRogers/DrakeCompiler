@@ -9,7 +9,7 @@ namespace T {
 		}
 
 		public static main() {
-			var tt = ThisTest();
+			var tt = ctor();
 			Console.println(tt.id().x);
 		}
 	}

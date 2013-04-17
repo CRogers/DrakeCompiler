@@ -250,7 +250,7 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.Item:NamespaceDecl = item
     override x.ItemObj = upcast item
 
-    member x.CtorCA = match x.GetRef(ProcKey (x.Name, [])) with Some (ClassRef cA) -> cA
+    member x.CtorCA = match x.GetRef(ProcKey ("ctor", [])) with Some (ClassRef cA) -> cA
 
     member val AllInterfaces:list<NamespaceDeclA> = [] with get, set
     member val ImplementedBy:list<NamespaceDeclA> = [] with get, set

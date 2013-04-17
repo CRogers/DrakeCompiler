@@ -48,6 +48,7 @@ let annotateTypeParams (program:list<NDA>) =
                 | Cast (ptype, _) -> ptype := newPType typeParams !ptype
                 | VarStatic ptype -> ptype := newPType typeParams !ptype
                 | DotTemplate (_, _, ptypes) -> ptypes := newPTypes typeParams !ptypes
+                | _ -> ()
 
         iterAST foldASTExpr change eA
 
@@ -67,6 +68,7 @@ let annotateTypeParams (program:list<NDA>) =
             | ClassProc (_, _, _, params_, returnType, eA) ->
                 let typeParams = Set.union typeParams <| Set.ofList (cA :> ITemplate).TypeParams
                 expandPTypesParams typeParams !params_
+                returnType := newPType typeParams !returnType
                 aTPExpr typeParams eA
 
     ////////

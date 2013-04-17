@@ -19,8 +19,8 @@ namespace T {
 
 		public static main() {			
 			purr();             // purr :: PFunc ([], UserType Unit)
-            Cat().callMeow();
-			Cat().meow();       // Cat :: PFunc ([], UserType Cat), Cat() :: UserType Cat, Cat().meow :: PFunc ([], UserType Unit)
+            ctor().callMeow();
+			ctor().meow();       // Cat :: PFunc ([], UserType Cat), Cat() :: UserType Cat, Cat().meow :: PFunc ([], UserType Unit)
 			Dog.woof();         // Dog :: StaticType Dog, Dog.woof :: PFunc ([], UserType Unit)
 			Dog.new().bark();   // Dog :: StaticType Dog, Dog.new :: PFunc ([], UserType Dog)
 			                    // Dog.new() :: UserType Dog, Dog.new().bark :: PFunc ([], UserType Unit)
@@ -40,7 +40,7 @@ namespace T {
 
 		public static new():Dog {
 			Console.println(6);
-			return Dog();
+			return ctor();
 		}
 	}
 }

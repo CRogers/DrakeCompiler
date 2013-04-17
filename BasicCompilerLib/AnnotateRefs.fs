@@ -11,7 +11,8 @@ and make a default map of references that can be added for everything
 *)           
 
 
-let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
+// Go through an expand all types that are shorthand (eg Int32 instead of System::Int32) and make them longhand
+let expandTypes (globals:GlobalStore) (program:list<NDA>) =
 
     //////////
     let getQName namespace_ usings name =
@@ -41,20 +42,28 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
             | ParamedType (ptype, params_) -> ParamedType (newPType nspace usings ptype, params_)
             | Type nA -> failwithf "%s is trying to be expanded - this shouldn't happen at this stage" nA.Name
 
+    and newPTypes nspace usings ptypes = List.map (newPType nspace usings) ptypes
+
     //////////
     let expandParamsQName nspace usings (params_:seq<Param>) =
-        Seq.iter (fun (p:Param) -> p.PType <- newPType nspace usings p.PType) params_
+        for p in params_ do
+            p.PType <- newPType nspace usings p.PType
 
     //////////
-    let expandParamsExpr (eA:ExprA) =
-        iterAST foldASTExpr (fun (annot:Annot) ->
+    let expandTypesExpr (eA:ExprA) =
+        
+        let change (annot:Annot) =
             let eA = annot :?> ExprA
             match eA.Item with
-                | Cast (ptype, castEA) -> ptype := newPType eA.Namespace eA.Usings !ptype
-                | _ -> ()) eA
+                | Cast (ptype, _) -> ptype := newPType eA.Namespace eA.Usings !ptype
+                | VarStatic ptype -> ptype := newPType eA.Namespace eA.Usings !ptype
+                | DotTemplate (_, _, ptypes) -> ptypes := newPTypes eA.Namespace eA.Usings !ptypes
+                | _ -> ()
+
+        iterAST foldASTExpr change eA
 
     //////////
-    let annotateCIRefsClass (cA:CDA) =
+    let expandTypesClass (cA:CDA) =
         let qname = cA.NamespaceDecl.Value.QName + "." + cA.Name
 
         let eA = match cA.Item with
@@ -63,46 +72,60 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
                 cA.QName <- qname
                 eA
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
-                // Check to see that proc name isn't the same as the classname
-                if name = cA.NamespaceDecl.Value.Name then failwithf "Can't use %s as the name for class %s - must be different" name name
-                // Type expansion
                 expandParamsQName cA.Namespace cA.Usings !params_
                 returnType := newPType cA.Namespace cA.Usings !returnType
                 cA.QName <- qname
                 eA
 
-        expandParamsExpr eA
-                
-        (classNPKey cA, ClassRef cA)
+        expandTypesExpr eA
 
     //////////
-    let annotateCIRefsInterface iname (iA:IDA) =
+    let expandTypesInterface iname (iA:IDA) =
         match iA.Item with
             | InterfaceProc (name, params_, returnType) ->
                 expandParamsQName iA.Namespace iA.Usings params_
                 returnType := newPType iA.Namespace iA.Usings !returnType
                 iA.QName <- qualifiedName iA.Namespace iname [name]
-        
-        (interfaceNPKey iA, InterfaceRef iA)
+
+    //////////
+    let expandTypesNamespace (nA:NDA) = 
+        match nA.Item with
+            | Class (name, vis, isStruct, ifaces, cAs) ->
+                ifaces := List.map (newPType nA.Namespace nA.Usings) !ifaces
+                Seq.iter expandTypesClass cAs
+            | Interface (name, vis, ifaces, iAs) ->
+                ifaces := List.map (newPType nA.Namespace nA.Usings) !ifaces
+                Seq.iter (expandTypesInterface name) iAs
+
+
+    Seq.iter expandTypesNamespace program
+    
+
+// Find each type's procedures/vars and add references for them
+let annotateCIRefs (program:list<NamespaceDeclA>) =
+
+    //////////
+    let getCIRefClass (cA:CDA) = (classNPKey cA, ClassRef cA)
+
+    //////////
+    let getCIRefInterface iname (iA:IDA) = (interfaceNPKey iA, InterfaceRef iA)
 
     //////////
     let annotateCIRefsNamespace (nA:NDA) =
         // We need to go deeper - add CIRefs for classes/interfaces
         let refs = match nA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
-                ifaces := List.map (newPType nA.Namespace nA.Usings) !ifaces
-                let refs = Seq.map annotateCIRefsClass cAs
+                let refs = Seq.map getCIRefClass cAs
                 
                 // Add a ctor ref
-                let c = ClassProc (name, Private, Static, ref [], ref <| Type nA, ExprA(Nop, Pos.NilPos))
+                let c = ClassProc ("ctor", Private, Static, ref [], ref <| Type nA, ExprA(Nop, Pos.NilPos))
                 let cA = ClassDeclA (c, Pos.NilPos)
                 cA.IsCtor <- true
                 let ctorRef = (classNPKey cA, ClassRef cA)
                 Seq.append [ctorRef] refs
 
             | Interface (name, vis, ifaces, iAs) ->
-                ifaces := List.map (newPType nA.Namespace nA.Usings) !ifaces
-                Seq.map (annotateCIRefsInterface name) iAs
+                Seq.map (getCIRefInterface name) iAs
 
         nA.AddRefs(refs)
 
@@ -111,6 +134,7 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
 
 
 
+// Blaze through the AST and get the names of all the main types
 let getGlobalRefs (program:Program) =
 
     //////////

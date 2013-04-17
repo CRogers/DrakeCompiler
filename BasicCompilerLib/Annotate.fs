@@ -53,7 +53,10 @@ let annotate (program:Program) =
     // Flattern tree to class/interface level
     let flatProg = flatternAST program
 
-    annotateCIRefs globals flatProg
+    Templates.annotateTypeParams flatProg
+
+    expandTypes globals flatProg
+    annotateCIRefs flatProg
     annotateInterfaces globals flatProg
 
     // Find the binops

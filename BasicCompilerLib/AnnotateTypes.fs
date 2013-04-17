@@ -46,12 +46,11 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
         eA.PType <- match eA.Item with
             | ConstInt (size, _) -> commonPtype globals <| Int size
             | ConstBool _        -> commonPtype globals Bool
-            | ConstUnit          -> commonPtype globals Unit
             | Var n ->
                 // See if it's a local ref
                 match eA.GetRef(n) with
                     | Some ref -> ref.PType
-                    | None -> failwithf "Can't find ref for %s" n; 
+                    | None -> failwithf "Can't find ref for %s" n;
 
             | Binop (n, l, r) ->
                 aTE l
@@ -66,14 +65,16 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
 
                 // First see if it is a static var
                 let staticPos = match dotEA.Item with
-                    | Var n -> match dotEA.GetRef n with
-                        | None -> match getGlobal globals eA.Namespace eA.Usings n with
-                            | None -> failwithf "Cannot find class/interface %s" n
-                            | Some nA -> match nA.GetRef <| VarKey name with
-                                | None -> failwithf "Cannot find existent member %s in %s" name nA.QName
-                                | Some (ClassRef cA) -> Some <| DotStatic (nA, cA)
-                                | _ -> failwithf "Can only get static class vars"
-                        | _ -> None
+                    | VarStatic ptype ->
+                        let n = match !ptype with InitialType n -> n
+                        match dotEA.GetRef n with
+                            | None -> match getGlobal globals eA.Namespace eA.Usings n with
+                                | None -> failwithf "Cannot find class/interface %s" n
+                                | Some nA -> match nA.GetRef <| VarKey name with
+                                    | None -> failwithf "Cannot find existent member %s in %s" name nA.QName
+                                    | Some (ClassRef cA) -> Some <| DotStatic (nA, cA)
+                                    | _ -> failwithf "Can only get static class vars"
+                            | _ -> None
                     | _ -> None
 
                 // If it's not a static var it must be an instance var
@@ -111,14 +112,12 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
 
                 let argTypeNAs = List.map (fun (eA:ExprA) -> ptypeToNA eA.PType) exprAs
 
-                let staticCall typeName dotName = 
-                    match getGlobal globals eA.Namespace eA.Usings typeName with
-                        | None -> failwithf "Cannot find the static type %s" typeName
-                        | Some nA -> match getBestOverload nA dotName argTypeNAs with
-                            | ClassRef cA ->
-                                if cA.IsStatic = NotStatic then
-                                    failwithf "Method %s in %s is not static" (NPKeyPretty <| classNPKey cA) nA.QName
-                                CallStatic (cA, exprAs)
+                let staticCall nA dotName =
+                    match getBestOverload nA dotName argTypeNAs with
+                        | ClassRef cA ->
+                            if cA.IsStatic = NotStatic then
+                                failwithf "Method %s in %s is not static" (NPKeyPretty <| classNPKey cA) nA.QName
+                            CallStatic (cA, exprAs)
 
                 let instanceCall dotEA dotName =
                     aTE dotEA
@@ -142,9 +141,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 let loweredCall = match feA.Item with
                     // See if it's a static call
                     | Dot (dotEA, dotName) -> match dotEA.Item with
-                        | Var n -> match eA.GetRef n with
-                            | None -> staticCall n dotName
-                            | Some _ -> instanceCall dotEA dotName
+                        | Var n -> instanceCall dotEA dotName
+                        | VarStatic ptype -> staticCall (ptypeToNA !ptype) dotName
                         | _ -> instanceCall dotEA dotName
                     | Var n -> localCall n
                 

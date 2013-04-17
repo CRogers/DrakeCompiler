@@ -6,7 +6,7 @@ namespace K {
 	}
 
 	class ImplX : X {
-		public static new():ImplX { return ImplX(); }
+		public static new():ImplX { return ctor(); }
 		public x() { Console.println(3); }
 		public y() {}
 	} 

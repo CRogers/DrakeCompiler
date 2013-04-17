@@ -23,7 +23,7 @@ namespace K {
         public a() {Console.println(3);}
         public b() {Console.println(4);}
 
-        public static new():Impl { return Impl(); }
+        public static new():Impl { return ctor(); }
 	}
 
 	class Program {

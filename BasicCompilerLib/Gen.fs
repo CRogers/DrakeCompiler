@@ -44,7 +44,6 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
         |> List.ofSeq
 
     match eA.Item with
-        | ConstUnit -> failwithf "unimplemented 98235674"
         | ConstInt (s, i) -> genConstInt (intSizeToTy s) (uint64 i)
         | ConstBool b -> genConstBool b
         | Var n ->
