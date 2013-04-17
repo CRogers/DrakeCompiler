@@ -171,9 +171,6 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 eA.AddRef(name, ref)
                 localVars.Add(ref)
                 assignA.PType
-            | Print exprA ->
-                aTE exprA
-                exprA.PType
             | Return exprA ->
                 aTE exprA
                 commonPtype globals Unit

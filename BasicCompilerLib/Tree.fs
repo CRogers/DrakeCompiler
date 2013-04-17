@@ -134,7 +134,6 @@ and Expr =
     | CallVirtual of InterfaceDeclA * ExprA * list<ExprA>
     | Assign of ExprA * ExprA
     | DeclVar of string * (*Assign*) ExprA
-    | Print of ExprA
     | Return of ExprA
     | ReturnVoid
     | If of ExprA * ExprA * ExprA
@@ -497,7 +496,6 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | CallVirtual (cA, feA, eAs) -> bf (feA :: eAs)
         | Assign (lvalue, innerExprA) -> bf [lvalue; innerExprA]
         | DeclVar (name, assignA) -> bf1 assignA
-        | Print e -> bf1 e
         | Return e -> bf1 e
         | ReturnVoid -> bf []
         | If (test, then_, else_) -> bf [test; then_; else_]

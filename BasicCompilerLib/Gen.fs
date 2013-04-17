@@ -54,9 +54,11 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
                     | StaticProcRef -> r.ValueRef.Value
                     //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "")
 
-        | Dot _   -> failwithf "Compiler fail: This Dot should have been lowered to a more specific Dot in the annotation stage"
-        | Binop _ -> failwithf "Compiler fail: This Binop should have been lowered to a CallStatic in the annotation stage"
-        | Call _  -> failwithf "Compiler fail: This Call should have been lowered to a more specific Call in the annotation stage"
+        | VarStatic _   -> failwithf "Compiler fail: This VarStatic should have been lowered to a more specific Dot in the annotation stage"
+        | Dot _         -> failwithf "Compiler fail: This Dot should have been lowered to a more specific Dot in the annotation stage"
+        | DotTemplate _ -> failwithf "Compiler fail: This DotTemplate should have been lowered to a more specific Dot in the annotation stage"
+        | Binop _       -> failwithf "Compiler fail: This Binop should have been lowered to a CallStatic in the annotation stage"
+        | Call _        -> failwithf "Compiler fail: This Call should have been lowered to a more specific Call in the annotation stage"
 
         | DotStatic (nA, cA) ->
             // Static var
@@ -145,6 +147,8 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             else
                 positionBuilderAtEnd bldr ifcont
             uninitValueRef
+
+        | While _ -> failwithf "Unimplemented while loops"
 
         | Seq (eA1, eA2) ->
             genE !eA1 |> ignore
