@@ -53,7 +53,7 @@ let applyTypeParamsConstraints<'a when 'a :> ITemplate> tps tcs (item:ITemplate)
 $py(binops=['BINOP' + str(x) for x in range(0,7)])
 
 %token<(Pos * int64)>  INT8 INT16 INT32 INT64 
-%token<(Pos * string)> IDENT$for(binop in binops) $(binop)$endfor
+%token<(Pos * string)> IDENT TYPENAME$for(binop in binops) $(binop)$endfor
 %token<Pos>            TRUE FALSE
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
 %token<Pos>            RETURN LCURLY RCURLY LSQUARE RSQUARE SEMI START PROC EQUALS LET
@@ -61,7 +61,7 @@ $py(binops=['BINOP' + str(x) for x in range(0,7)])
 %token<Pos>            NAMESPACE CLASS STRUCT INTERFACE
 %token<Pos>            PRIVATE PUBLIC
 %token<Pos>            STATIC CONSTRUCTOR
-%token<Pos>            ARROW USING DOT SRO BACKSLASH WHERE
+%token<Pos>            ARROW USING DOT SRO GENSPACEOP WHERE
 
 %type<CompilationUnit> program
 %start program
@@ -99,9 +99,9 @@ classOrStruct:
         { NotStruct }
 
 typeName:
-    | IDENT
+    | TYPENAME
         { \$1 }
-    | IDENT SRO typeName
+    | TYPENAME SRO typeName
         { (markers (p \$1) (p \$3), v \$1 + "::" + v \$3) }
 
 typeNameList:
@@ -113,19 +113,19 @@ typeNameList:
 ptype:
     | typeName
         { InitialType (v \$1) }
-    | typeName BACKSLASH LSQUARE ptypeParamList RSQUARE
+    | typeName GENSPACEOP LSQUARE ptypeList RSQUARE
         { ParamedType (InitialType <| v \$1, \$4)  }
 
-ptypeParamList:
+ptypeList:
     | ptype
         { [\$1] }
-    | ptype COMMA ptypeParamList
+    | ptype COMMA ptypeList
         { \$1 :: \$3 }
 
 ifaceImplements:
     | /* empty */
         { [] }
-    | COLON ptypeParamList
+    | COLON ptypeList
         { \$2 }
 
 identOrBinop:
@@ -151,7 +151,7 @@ possReturnType:
 possTypeParams:
     | /* empty */
         { [] }
-    | BACKSLASH LSQUARE typeNameList RSQUARE
+    | GENSPACEOP LSQUARE typeNameList RSQUARE
         { \$3 }
 
 possConstraints:
@@ -189,11 +189,11 @@ topLevelDecls:
 namespaceDecls:
     | /* empty */
         { [] }
-    | visibility classOrStruct IDENT possTypeParams ifaceImplements possConstraints LCURLY classDecls RCURLY namespaceDecls
+    | visibility classOrStruct TYPENAME possTypeParams ifaceImplements possConstraints LCURLY classDecls RCURLY namespaceDecls
         {   (nbb (Class (v \$3, \$1, \$2, ref \$5, \$8)) (p \$3) \$7, \$10)
             ||> applyTypeParamsConstraints \$4 \$6
         }
-    | visibility INTERFACE IDENT possTypeParams ifaceImplements possConstraints LCURLY interfaceDecls RCURLY namespaceDecls
+    | visibility INTERFACE TYPENAME possTypeParams ifaceImplements possConstraints LCURLY interfaceDecls RCURLY namespaceDecls
         {   (nbb (Interface (v \$3, \$1, ref \$5, \$8)) \$2 \$7, \$10)
             ||> applyTypeParamsConstraints \$4 \$6
         }
@@ -272,10 +272,10 @@ $endfor\
         { \$1 }
 
 expr4:
-    | LPAR RPAR
-        { ebb ConstUnit \$1 \$2 }
-    | typeName
+    | IDENT
         { ea (Var (v \$1)) (p \$1) }
+    | ptype
+        { ea (VarStatic (ref \$1)) Pos.NilPos }
     | TRUE
         { ea (ConstBool true) \$1 }
     | FALSE
@@ -284,7 +284,7 @@ $for(x in [8,16,32,64])\
     | INT$(x)
         { ea (ConstInt ($(x), v \$1)) (p \$1) }
 $endfor\
-    | expr4 LPAR argList RPAR  
+    | expr4 LPAR argList RPAR
         { eab (Call (\$1, \$3)) \$1 \$4 }
     | expr4 LSQUARE expr3 RSQUARE
         {   let dot = eab (Dot (\$1, "indexer")) \$1 \$2
@@ -296,5 +296,7 @@ $endfor\
 expr5:
     | expr4 DOT IDENT
         { eab (Dot (\$1, v \$3)) \$1 (p \$3) }
+    | expr4 DOT IDENT GENSPACEOP LSQUARE ptypeList RSQUARE
+        { eab (DotTemplate (\$1, v \$3, ref \$6)) \$1 \$7 }
     | LPAR expr3 RPAR
         { \$2 }

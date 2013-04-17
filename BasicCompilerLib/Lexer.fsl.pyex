@@ -38,12 +38,13 @@ $py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE"), ("where", "WHERE")])\
 
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY"), ("[", "LSQUARE"), ("]", "RSQUARE")])\
 $py(defs+=[(":", "COLON"), (";", "SEMI"), ("=", "EQUALS")])\
-$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO"), ("\\\\", "BACKSLASH")])\
+$py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO"), ("~", "GENSPACEOP")])\
 
 }
 
 let integer = '-'? ['0'-'9']+
-let ident = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
+let ident = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
+let typeName = ['A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 let symbol = ['+' '-' '*' '/' '%' '&' '|' '!' '=' '?']+
 let white = [' ' '\t']
 let endline = '\r'? '\n'
@@ -67,5 +68,6 @@ $for((str, defn) in defs)\
     | "$(str)"              { $(defn) (pos lexbuf) }
 $endfor\
     | ident                 { IDENT (pos lexbuf, lexeme lexbuf) }
+    | typeName              { TYPENAME (pos lexbuf, lexeme lexbuf) }
     | symbol                { let s = lexeme lexbuf in binopLevel s.[0] (pos lexbuf, s)  }
     | _                     { failwithf "Lexing fail for %s" (lexeme lexbuf) }

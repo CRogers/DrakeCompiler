@@ -50,6 +50,7 @@ and PType =
     | Undef
     | InitialType of string
     | ParamedType of PType * PType list
+    | TypeParam of string
     | Type of NamespaceDeclA
     //| PFunc of (*arg types*) list<PType> * (*return type*) PType * IsStatic
     with override x.ToString() = match x with
@@ -119,9 +120,10 @@ and [<AbstractClass>] AnnotRefs<'k,'v when 'k:comparison>(pos:Pos) =
 and Expr =
     | ConstInt of (*size*) int * (*value*) int64
     | ConstBool of bool
-    | ConstUnit
     | Var of string
+    | VarStatic of PType ref
     | Dot of ExprA * string
+    | DotTemplate of ExprA * string * list<PType> ref
     | DotInstance of ExprA * ClassDeclA
     | DotStatic of NamespaceDeclA * ClassDeclA
     | Binop of string * ExprA * ExprA
@@ -479,11 +481,12 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
     let bf1 e = branchFunc exprA <| [fAST e]
     let bf es = branchFunc exprA <| List.map fAST es
     match exprA.Item with
-        | ConstInt _ -> leafFunc exprA
-        | ConstBool _ -> leafFunc exprA
-        | ConstUnit -> leafFunc exprA
-        | Var n -> leafFunc exprA
+        | ConstInt _
+        | ConstBool _
+        | Var _
+        | VarStatic _ -> leafFunc exprA
         | Dot (eA, name) -> bf1 eA
+        | DotTemplate (eA, _, _) -> bf1 eA
         | DotStatic (nA, cA) -> leafFunc exprA
         | DotInstance (eA, cA) -> bf1 eA
         | Binop (n, l, r) -> bf [l; r]

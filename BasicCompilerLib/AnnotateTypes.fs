@@ -51,7 +51,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 // See if it's a local ref
                 match eA.GetRef(n) with
                     | Some ref -> ref.PType
-                    | None -> failwithf "Can't find ref for %s" n
+                    | None -> failwithf "Can't find ref for %s" n; 
 
             | Binop (n, l, r) ->
                 aTE l

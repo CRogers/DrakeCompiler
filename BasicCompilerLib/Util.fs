@@ -2,6 +2,8 @@
 
 open System.Collections.Generic
 
+let id x = x
+
 let getSomes xs = Seq.filter Option.isSome xs |> Seq.map Option.get
 
 let intersection (xs:list<'a>) (ys:list<'a>) =

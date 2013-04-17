@@ -35,9 +35,10 @@ let annotateCIRefs (globals:GlobalStore) (program:list<NamespaceDeclA>) =
                 | None -> failwithf "Couldn't find %s in globals" name           
 
     //////////
-    let newPType nspace usings ptype = match ptype with
+    let rec newPType nspace usings ptype = match ptype with
             | Undef -> Undef
             | InitialType name -> Type <| getQName nspace usings name
+            | ParamedType (ptype, params_) -> ParamedType (newPType nspace usings ptype, params_)
             | Type nA -> failwithf "%s is trying to be expanded - this shouldn't happen at this stage" nA.Name
 
     //////////
