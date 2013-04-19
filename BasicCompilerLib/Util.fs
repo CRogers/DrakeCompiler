@@ -6,6 +6,14 @@ let id x = x
 
 let getSomes xs = Seq.filter Option.isSome xs |> Seq.map Option.get
 
+let difference (xs:seq<'a>) (ys:seq<'a>) =
+    let set = new HashSet<'a>(ys)
+    seq {
+        for x in xs do
+            if not <| set.Contains x then
+                yield x
+    }
+
 let intersection (xs:list<'a>) (ys:list<'a>) =
     let set = HashSet<'a>(xs, HashIdentity.Structural)
     ys |> List.filter (fun x -> not (set.Contains x))

@@ -19,21 +19,13 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
     /////////////
     let lowerBinopToCall (eA:ExprA) = match eA.Item with
         | Binop (n, l, r) ->
-            let key = namePTypesKey n <| List.map (fun (eA:ExprA) -> eA.PType) [l; r]
-            let value = match Map.tryFind key binops with
-                | Some v -> v
-                | None -> failwithf "Cannot find an appropriate static method to call for binop %s" <| eA.Item.ToString()
-
-            // Check to see ww have only one possible thing to call
-            if Seq.length value > 1 then
-                System.String.Join(", ", Seq.map (fun (cA:ClassDeclA) -> cA.QName) value)
-                |> failwithf "Cannot choose between methods %s"
-
-            let cA = Seq.head value
+            let argTypeNAs = List.map (fun (eA:ExprA) -> ptypeToNA eA.PType) [l; r]
+            let cA = match getBestOverload "Operators" binops n argTypeNAs with ClassRef cA -> cA
 
             // Now change Binop into a Call
             let call = CallStatic (cA, [l; r])
             eA.Item <- call
+            
         | _ -> failwithf "Must call with a Binop, not a %s" <| eA.Item.ToString()
 
 
@@ -112,8 +104,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
 
                 let argTypeNAs = List.map (fun (eA:ExprA) -> ptypeToNA eA.PType) exprAs
 
-                let staticCall nA dotName =
-                    match getBestOverload nA dotName argTypeNAs with
+                let staticCall (nA:NDA) dotName =
+                    match getBestOverloadNA nA dotName argTypeNAs with
                         | ClassRef cA ->
                             if cA.IsStatic = NotStatic then
                                 failwithf "Method %s in %s is not static" (NPKeyPretty <| classNPKey cA) nA.QName
@@ -122,7 +114,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 let instanceCall dotEA dotName =
                     aTE dotEA
                     match dotEA.PType with
-                        | Type nA -> match getBestOverload nA dotName argTypeNAs with
+                        | Type nA -> match getBestOverloadNA nA dotName argTypeNAs with
                             | ClassRef cA ->
                                 if cA.IsStatic = Static then failwithf "Method %s in %s is static" (NPKeyPretty <| classNPKey cA) nA.QName
                                 CallInstance (cA, dotEA, exprAs)
@@ -130,7 +122,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
 
                 let localCall name =
                     let class_ = feA.NamespaceDecl.Value
-                    match getBestOverload class_ name argTypeNAs with
+                    match getBestOverloadNA class_ name argTypeNAs with
                         | ClassRef cA -> match cA.IsStatic with
                             | Static -> CallStatic (cA, exprAs)
                             | NotStatic ->

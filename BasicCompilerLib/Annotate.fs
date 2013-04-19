@@ -32,20 +32,24 @@ let fixNonStaticFunctionParams (nAs:list<NamespaceDeclA>) =
 
 
 let findBinops (nAs:list<NamespaceDeclA>) =
-    getClassDecls nAs
-    |> Seq.map (fun cA -> match cA.Item with
-        | ClassProc (name, _, Static, params_, _, _) when (!params_).Length = 2 ->
-            Some (classNPKey cA, cA)
-        | _ -> None)
-    |> Util.getSomes
-    |> Seq.groupBy fst
-    |> Seq.map (fun (npkey, seqNslCA) -> (npkey, List.ofSeq <| Seq.map snd seqNslCA))
-    |> Map.ofSeq
 
-type Test = 
-    | Foo
-    | Bar
-    with override x.ToString() = "cat"
+    let groupedByKey = 
+        getClassDecls nAs
+        |> Seq.map (fun cA -> 
+            if cA.IsBinop then Some (classNPKey cA, ClassRef cA)
+            else None)
+        |> Util.getSomes
+        |> Seq.groupBy fst
+        |> Seq.map (fun (npkey, seqNslCA) -> (npkey, Seq.map snd seqNslCA))
+
+    // See if there are any that are declared twice
+    for k, v in groupedByKey do
+        if not (Seq.length v = 1) then
+            failwithf "Multiple definitions of binop %s" (NPKeyPretty k)
+
+    groupedByKey
+    |> Seq.map (fun (key, cAs) -> (key, Seq.head cAs))
+    |> Map.ofSeq
 
 let annotate (program:Program) =
     let globals = getGlobalRefs program
@@ -56,11 +60,12 @@ let annotate (program:Program) =
     Templates.annotateTypeParams flatProg
 
     expandTypes globals flatProg
-    annotateCIRefs flatProg
-    annotateInterfaces globals flatProg
 
     // Find the binops
     let binops = findBinops flatProg
+
+    annotateCIRefs flatProg
+    annotateInterfaces globals flatProg
 
     annotateTypes globals binops flatProg
 

@@ -7,21 +7,21 @@ let canCastTo (fromNA:NDA) toNA =
     Seq.exists (fun nA -> nA = toNA) fromNA.AllInterfaces
 
 
-let getBestOverload (nA:NDA) (name:string) (argTypeNAs:list<NDA>) =
+let getBestOverload nAname (cirefs:Map<NPKey,CIRef>) (name:string) (argTypeNAs:list<NDA>) =
 
     // Format method as a string for error reporting
     let fmtMethod (args:seq<string>) = sprintf "%s(%s)" name <| System.String.Join(", ", args)
 
     // Get all procs which have the same name
     let procArgsSeq = 
-        nA.Refs
+        cirefs
         |> Map.filter (fun k v -> match k with ProcKey (n, args) -> n = name && args.Length = argTypeNAs.Length | _ -> false)
         |> Map.toSeq
         |> Seq.map (fun (ProcKey (_, args), _) -> args)
 
     // If there are no args with that name, error
     if Seq.length procArgsSeq = 0 then
-        failwithf "No method %s could be found in %s" name nA.QName
+        failwithf "No method %s could be found in %s" name nAname
 
     // Score 1 if the arg is an interface
     // Score 2 if the arg is the exact object
@@ -48,7 +48,7 @@ let getBestOverload (nA:NDA) (name:string) (argTypeNAs:list<NDA>) =
 
     // No results mean no possibles with matching arg types
     if Seq.length results = 0 then
-        failwithf "No method %s with correct args could be found in %s" name nA.QName
+        failwithf "No method %s with correct args could be found in %s" name nAname
 
     let bestResult =
         results
@@ -61,14 +61,16 @@ let getBestOverload (nA:NDA) (name:string) (argTypeNAs:list<NDA>) =
 
     // Check that any of things match
     if bestResult.Length = 0 then
-        failwithf "Cannot find any method in %s that matches the signature %s" nA.QName (fmtMethod argTypeStrs)
+        failwithf "Cannot find any method in %s that matches the signature %s" nAname (fmtMethod argTypeStrs)
 
     // Check to see that there are 2 methods which score the same
     if bestResult.Length > 1 then
         let methods = Util.joinMap ", " fmtMethod bestResult
-        failwithf "Cannot choose between methods %s for %s in %s" methods (fmtMethod argTypeStrs) nA.QName
+        failwithf "Cannot choose between methods %s for %s in %s" methods (fmtMethod argTypeStrs) nAname
 
     let bestSignature = Seq.head bestResult
     let bestKey = ProcKey (name, bestSignature)
 
-    match nA.GetRef(bestKey) with Some ciref -> ciref
+    Map.find bestKey cirefs
+
+let getBestOverloadNA (nA:NDA) dotName argTypeNAs = getBestOverload nA.QName nA.Refs dotName argTypeNAs

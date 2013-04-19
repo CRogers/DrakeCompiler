@@ -170,6 +170,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType:option<TypeRef> = None with get, set
     member val IsCtor = false with get, set
+    member val IsBinop = false with get, set
     member val DefiningMethod:option<InterfaceDeclA> = None with get, set
     member val IfaceProcStub:option<ValueRef> = None with get, set
 
@@ -461,7 +462,7 @@ let rec lastInSeqAndPrev (eA:ExprA) =
 let isLastInSeqRet eA = isReturn <| lastInSeq eA
 
 type GlobalStore = Map<string, NamespaceDeclA>
-type BinopStore = Map<NPKey, list<ClassDeclA>>
+type BinopStore = Map<NPKey, CIRef>
 
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =
     member x.Name = name
