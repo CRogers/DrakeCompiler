@@ -79,9 +79,12 @@ and Param(name: string, ptype: PType) =
 
 and Constraint = Param
 
+and TypeParamEnv = Map<string, PType>
+
 and ITemplate = interface
     abstract TypeParams:list<string> with get, set
     abstract TypeConstraints:list<Constraint> with get, set
+    abstract TypeEnv:TypeParamEnv with get, set
     end
 
 and CIRef = 
@@ -169,14 +172,14 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Offset = -1 with get, set
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType:option<TypeRef> = None with get, set
-    member val IsCtor = false with get, set
     member val IsBinop = false with get, set
     member val DefiningMethod:option<InterfaceDeclA> = None with get, set
     member val IfaceProcStub:option<ValueRef> = None with get, set
 
     interface ITemplate with
-        member val TypeParams:list<string> = [] with get, set
-        member val TypeConstraints:list<Constraint> = [] with get, set
+        member val TypeParams = [] with get, set
+        member val TypeConstraints = [] with get, set
+        member val TypeEnv = Map.empty with get, set
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -220,8 +223,9 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member val FuncType:option<TypeRef> = None with get, set
 
     interface ITemplate with
-        member val TypeParams:list<string> = [] with get, set
-        member val TypeConstraints:list<Constraint> = [] with get, set
+        member val TypeParams = [] with get, set
+        member val TypeConstraints = [] with get, set
+        member val TypeEnv = Map.empty with get, set
 
     member x.PType = match x.Item with
         | InterfaceProc (_, params_, returnType) -> !returnType
@@ -271,8 +275,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member val IsBuiltin = false with get, set
 
     interface ITemplate with
-        member val TypeParams:list<string> = [] with get, set
-        member val TypeConstraints:list<Constraint> = [] with get, set
+        member val TypeParams = [] with get, set
+        member val TypeConstraints = [] with get, set
+        member val TypeEnv = Map.empty with get, set
 
     member x.IsClass = match x.Item with
         | Class _ -> true
@@ -328,6 +333,8 @@ type CDA = ClassDeclA
 type IDA = InterfaceDeclA
 type NDA = NamespaceDeclA
 
+
+let isNonExpandedTemplate (it:ITemplate) = it.TypeParams.Length > 0
 
 
 let userTypeToString ptype = match ptype with
