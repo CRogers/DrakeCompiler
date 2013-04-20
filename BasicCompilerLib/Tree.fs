@@ -172,6 +172,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Offset = -1 with get, set
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType:option<TypeRef> = None with get, set
+    member val IsCtor = false with get, set
     member val IsBinop = false with get, set
     member val DefiningMethod:option<InterfaceDeclA> = None with get, set
     member val IfaceProcStub:option<ValueRef> = None with get, set

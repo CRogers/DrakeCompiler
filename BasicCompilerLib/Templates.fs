@@ -91,7 +91,9 @@ let annotateTypeParams (program:list<NDA>) =
     Seq.iter aTPNamespace program
 
 
+
 open System.Collections.Generic
+open Util
 
 // Find template invocations, then try and expand the templates from that
 // Template invocations can come about from: VarStatic, DotTemplate, ClassVar ptype,
@@ -101,18 +103,7 @@ open System.Collections.Generic
 let expandTemplates (program:list<NDA>) =
     
     let found = new Dictionary<string, NDA>()
-
-    let printPType ptype = match ptype with
-        | Type nA -> nA.QName
-        | TypeParam s -> s
-
-    let printPTypes ptypes = Util.joinMap ", " printPType ptypes
-
-    let getTypeParam env name = match Map.tryFind name env with
-        | Some v -> v
-        | None -> failwithf "Could not find type param for %s" name 
-
-    let paramTypeKey (nA:NDA) params_ = sprintf "%s[%s]" nA.QName <| Util.joinMap "," (fun (Type nA) -> nA.QName) params_
+    let stack = new Stack<NDA>()
 
     let copyOverTemplate (template:ITemplate) (new_:ITemplate) env =
         new_.TypeParams <- template.TypeParams
@@ -126,46 +117,25 @@ let expandTemplates (program:list<NDA>) =
 
     let filterOutTemplates(items: list<#ITemplate>) =
         List.filter (isNonExpandedTemplate >> not) items
-        
-    // Take a ptype and replace it's TypeParams with real types, create and return a new type for it
-    // If it's not a parameterised type, use return it
-    let rec expandTemplatePType env ptype =
-        match ptype with
-            | TypeParam name -> getTypeParam env name
-            | Type nA -> ptype
-            | ParamedType (Type nA, ptparams) ->
-                let typeParams = (nA :> ITemplate).TypeParams
 
-                // Check that the type we're parameterising has the right number of type params
-                if not (typeParams.Length = ptparams.Length) then
-                    failwithf "Parameterisation of type %s has too many parameters: %s" nA.QName <| printPTypes ptparams
+    let getTypeParam env name = match Map.tryFind name env with
+        | Some v -> v
+        | None -> failwithf "Could not find type param for %s" name
 
-                // Recursively replace each type param with concrete versions
-                let concretePtparams = seq {
-                    for ptparam in ptparams do
-                        yield expandTemplatePType env ptparam
-                }
+    let paramedQName (templateNA:NDA) typeParams = sprintf "%s[%s]" templateNA.QName <| Util.joinMap "," (fun (Type nA) -> nA.QName) typeParams
 
-                // See if we've visited it before
-                let newNA =
-                    let key = paramTypeKey nA concretePtparams
-                    if not <| found.ContainsKey key then
-                        // Match up concrete type param with name (key) and expand out the new template and return it
-                        let newEnv = Map.ofSeq <| Seq.zip typeParams concretePtparams
-                        expandTemplateNamespace newEnv nA
-                    else
-                        // Or return the one we made already
-                        found.[key]
+    let rec expandTemplatePType env ptype = match ptype with
+        | TypeParam p -> getTypeParam env p
+        | Type nA -> ptype
+        | ParamedType (templateType, typeParams) ->
+            ParamedType (templateType, List.map (expandTemplatePType env) typeParams)
 
-                Type newNA
+    let expandTemplatePTypes env ptypes = List.map (expandTemplatePType env) ptypes
 
-            | _ -> failwithf "Compiler Error: InitialType still exists at template expansion stage"
-
-    and expandTemplatesPTypes env ptypes = List.map (expandTemplatePType env) ptypes
-
-    and expandTemplatesParams env params_ = List.map (fun (p:Param) -> Param(p.Name, expandTemplatePType env p.PType)) params_
-
-    and expandTemplateExpr env (templateEA:ExprA) =
+    let expandTemplateParams env params_ = List.map (fun (p:Param) -> Param(p.Name, expandTemplatePType env p.PType)) params_
+    
+    /////////
+    let rec expandTemplateExpr env (templateEA:ExprA) =
         let eTE = expandTemplateExpr env
         let eTEr eRef = ref <| eTE !eRef
         let eTP = expandTemplatePType env
@@ -176,7 +146,7 @@ let expandTemplates (program:list<NDA>) =
             | Var s -> Var s
             | VarStatic ptype -> VarStatic <| eTPr ptype
             | Dot (eA, n) -> Dot (eTE eA, n)
-            | DotTemplate (eA, n, typeParams) -> DotTemplate (eTE eA, n, ref (expandTemplatesPTypes env !typeParams))
+            | DotTemplate (eA, n, typeParams) -> DotTemplate (eTE eA, n, ref (expandTemplatePTypes env !typeParams))
             | Binop (n, leA, reA) -> Binop (n, eTE leA, eTE reA)
             | Cast (ptype, eA) -> Cast (eTPr ptype, eTE eA)
             | Call (eA, argEAs) -> Call (eTE eA, List.map eTE argEAs)
@@ -193,10 +163,12 @@ let expandTemplates (program:list<NDA>) =
         let newEA = ExprA(newE, templateEA.Pos)
         newEA
 
-    and expandTemplateClass env ndecl (templateCA:CDA) =
+
+    /////////
+    let expandTemplateC env ndecl (templateCA:CDA) =
         let newC = match templateCA.Item with
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
-                let newParams = expandTemplatesParams env !params_
+                let newParams = expandTemplateParams env !params_
                 let newReturnType = expandTemplatePType env !returnType
 
                 ClassProc (name, vis, isStatic, ref newParams, ref newReturnType, eA)
@@ -212,12 +184,13 @@ let expandTemplates (program:list<NDA>) =
 
         newCA.IsBinop <- templateCA.IsBinop
 
-        
+        newCA
 
-    and expandTemplateInterface env ndecl (templateIA:IDA) =
+    /////////
+    let expandTemplateI env ndecl (templateIA:IDA) =
         let newI = match templateIA.Item with
             | InterfaceProc (name, params_, returnType) ->
-                let newParams = expandTemplatesParams env params_
+                let newParams = expandTemplateParams env params_
                 let newReturnType = expandTemplatePType env !returnType
 
                 InterfaceProc (name, newParams, ref newReturnType)
@@ -229,42 +202,120 @@ let expandTemplates (program:list<NDA>) =
 
         newIA
 
+    /////////
+    let expandTemplateN env (templateNA:NDA) =
+        let toAnnotList items = List.map (fun cA -> cA :> Annot) items
 
-    // We take a template and make a new version of the class that has the type parameters changed
-    // To begin with, only look at methods where there are no type parameters attached to them
-    and expandTemplateNamespace env (templateNA:NDA) =
         let newN = match templateNA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
-                let newIfaces = expandTemplatesPTypes env !ifaces
+                let newIfaces = expandTemplatePTypes env !ifaces
                 let newCAs =
                     filterOutTemplates cAs
-                    |> List.map (expandTemplateClass env None) 
+                    |> List.map (expandTemplateC env None) 
                 
                 Class (name, vis, isStruct, ref newIfaces, [])
 
             | Interface (name, vis, ifaces, iAs) ->
-                let newIfaces = expandTemplatesPTypes env !ifaces
+                let newIfaces = expandTemplatePTypes env !ifaces
                 let newIAs =
                     filterOutTemplates iAs
-                    |> List.map (expandTemplateInterface env)
+                    |> List.map (expandTemplateI env None)
                 
                 Interface (name, vis, ref newIfaces, newIAs)
 
-        match newN with
-            | None -> ()
-            | Some nd -> 
-                let newNA = NamespaceDeclA(newN, templateNA.Pos)
+        let newNA = NamespaceDeclA(newN, templateNA.Pos)
         
-                // Add Namespace/Usings, NamespaceDecl CIRefs
-                copyOverTemplate templateNA newNA env
+        // Add Namespace/Usings, NamespaceDecl CIRefs
+        copyOverTemplate templateNA newNA env
+        copyOverAnnot templateNA newNA None
 
-                newNA.QName <- paramTypeKey templateNA 
+        // Set NamespaceDecl of subthings to be this
+        iterAST foldASTNamespaceDecl (fun (annot:Annot) -> annot.NamespaceDecl <- Some newNA) newNA
 
-                found.Add(newNA.QName, newNA)
+        newNA
+        
 
 
+    /////////
+    let findTemplateExpansionsPType ptype = match ptype with
+        | TypeParam p -> failwithf "Shoudln't be finding TypeParams here"
+        | Type nA -> ()
+        | ParamedType (Type templateNA, typeParams) ->
+            let key = paramedQName templateNA typeParams
 
-        ()
+            // See if type does not already exists
+            if not <| found.ContainsKey key then
+                let templateTPs = (templateNA :> ITemplate).TypeParams
+
+                // Check that the type we're parameterising has the right number of type params
+                if not (typeParams.Length = templateTPs.Length) then
+                    failwithf "Parameterisation of type %s has too many parameters: %s" templateNA.QName key
+
+                let env = Map.ofSeq <| Seq.zip templateTPs typeParams
+                let newNA = expandTemplateN env templateNA
+
+                // Now add newly constructed concrete template to search
+                found.Add(key, newNA)
+                stack.Push newNA
+    
+    let findTemplateExpansionsPTypes ptypes = Seq.iter findTemplateExpansionsPType ptypes
+
+    let findTemplateExpansionsParams params_ = Seq.iter (fun (p:Param) -> findTemplateExpansionsPType p.PType) params_
+
+    ////////
+    let rec findTemplateExpansionsExpr (templateEA:ExprA) =
+        let fTE = findTemplateExpansionsExpr
+        let fTEr eRef = fTE !eRef
+        let fTP = findTemplateExpansionsPType
+        let fTPr tRef = fTP !tRef
+        match templateEA.Item with
+            | ConstInt _
+            | ConstBool _ 
+            | Var _ -> ()
+            | VarStatic ptype -> fTPr ptype
+            | Dot (eA, _) -> fTE eA
+            | DotTemplate (eA, _, typeParams) -> fTE eA; findTemplateExpansionsPTypes !typeParams
+            | Binop (_, leA, reA) -> fTE leA; fTE reA
+            | Cast (ptype, eA) -> fTPr ptype; fTE eA
+            | Call (eA, argEAs) -> fTE eA; Seq.iter fTE argEAs
+            | Assign (eA1, eA2) -> fTE eA1; fTE eA2
+            | DeclVar (_, eA) -> fTE eA
+            | Return eA -> fTE eA
+            | ReturnVoid -> ()
+            | If (test_, then_, else_) -> fTE test_; fTE then_; fTE else_
+            | While (test, body) -> fTE test; fTE body
+            | Seq (e1, e2) -> fTEr e1; fTEr e2
+            | Nop -> ()
+            | _ -> failwithf "Unknown case when template expanding expr"
+
+    /////////
+    let findTemplateExpansionsClass (templateCA:CDA) =
+        match templateCA.Item with
+            | ClassVar (_, _, _, ptype, eA) ->
+                findTemplateExpansionsPType !ptype
+                findTemplateExpansionsExpr eA
+            | ClassProc (_, _, _, params_, returnType, eA) ->
+                findTemplateExpansionsParams !params_
+                findTemplateExpansionsPType !returnType
+                findTemplateExpansionsExpr eA
+
+    /////////
+    let findTemplateExpansionsInterface (templateIA:IDA) =
+        match templateIA.Item with
+            | InterfaceProc (_, params_, returnType) ->
+                findTemplateExpansionsParams params_
+                findTemplateExpansionsPType !returnType
+
+    /////////
+    let findTemplateExpansionsNamespace (templateNA:NDA) =
+        match templateNA.Item with
+            | Class (_, _, _, ifaces, cAs) ->
+                findTemplateExpansionsPTypes !ifaces
+                Seq.iter findTemplateExpansionsClass cAs
+
+            | Interface (_, _, ifaces, iAs) ->
+                findTemplateExpansionsPTypes !ifaces
+                Seq.iter findTemplateExpansionsInterface iAs
     
 
     // Filter out the original, non-expanded templates
@@ -272,7 +323,13 @@ let expandTemplates (program:list<NDA>) =
 
     // Start the search from each of the non-template "roots"
     for nA in nonTemplates do
-        expandTemplateNamespace Map.empty nA
+        found.Add(nA.QName, nA)
+        stack.Push(nA)
+
+    // Perform DFS
+    while stack.Count > 0 do
+        let nA = stack.Pop()
+        findTemplateExpansionsNamespace nA
 
     // Results are in found
     let expandedTemplates = found.Values
