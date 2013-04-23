@@ -55,6 +55,7 @@ and PType =
     //| PFunc of (*arg types*) list<PType> * (*return type*) PType * IsStatic
     with override x.ToString() = match x with
         | Type nA -> sprintf "Type \"%s\"" nA.QName
+        | ParamedType (ptype, params_) -> sprintf "ParamedType (%s, [%s])" (ptype.ToString()) <| Util.joinMap ", " (fun x -> x.ToString()) params_
         | _ -> fmt x
 
 and Ref(name: string, ptype:PType, reftype:RefType) =
@@ -152,7 +153,9 @@ and ExprA(item:Expr, pos:Pos) =
 
     member val PType = Undef with get, set
 
-    override x.ToString() = "Expr" + match x.PType with
+    override x.ToString() = 
+        let union, _ = Microsoft.FSharp.Reflection.FSharpValue.GetUnionFields(x.Item, x.Item.GetType())
+        union.Name + match x.PType with
         | Undef -> ""
         | _ -> ":" + x.PType.ToString()
 
@@ -252,7 +255,7 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
 
     let bindPointerType t = Option.bind (fun t -> Some <| pointerType t 0u) t
 
-    member x.Item:NamespaceDecl = item
+    member val Item = item with get, set
     override x.ItemObj = upcast item
 
     member x.CtorCA = match x.GetRef(ProcKey ("ctor", [])) with Some (ClassRef cA) -> cA

@@ -40,7 +40,7 @@ let expandTypes (globals:GlobalStore) (program:list<NDA>) =
             | Undef -> Undef
             | InitialType name -> Type <| getQName nspace usings name
             | TypeParam _ -> ptype
-            | ParamedType (ptype, params_) -> ParamedType (newPType nspace usings ptype, params_)
+            | ParamedType (ptype, params_) -> ParamedType (newPType nspace usings ptype, newPTypes nspace usings params_)
             | Type nA -> failwithf "%s is trying to be expanded - this shouldn't happen at this stage" nA.Name
 
     and newPTypes nspace usings ptypes = List.map (newPType nspace usings) ptypes

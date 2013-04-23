@@ -44,6 +44,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                     | Some ref -> ref.PType
                     | None -> failwithf "Can't find ref for %s" n;
 
+            | VarStatic ptype -> !ptype
+
             | Binop (n, l, r) ->
                 aTE l
                 aTE r
