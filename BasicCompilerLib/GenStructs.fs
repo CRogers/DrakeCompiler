@@ -45,7 +45,7 @@ let createNamespaceStructures (nA:NDA) = match nA.Item with
                         | ClassVar (name, vis, iS, ptype, eA) when iS = isStatic ->
                             // i+1 as we have to include the vtable pointer/ptr to class name
                             cA.Offset <- i+1
-                            Some <| getLLVMType !ptype
+                            Some <| getInstPointTy !ptype
                         | _ -> None) cAs
                     
             // Get rid of the Nones

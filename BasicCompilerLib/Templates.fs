@@ -255,21 +255,23 @@ let expandTemplates (program:list<NDA>) =
 
 
     /////////
-    let findTemplateExpansionsPType ptype = match ptype with
+    let rec findTemplateExpansionsPType ptype = match ptype with
         | TypeParam p -> failwithf "Shoudln't be finding TypeParams here"
         | Type nA -> ptype
         | ParamedType (Type templateNA, typeParams) ->
-            let key = paramedName templateNA.QName typeParams
+            let expandedTypeParams:list<PType> = findTemplateExpansionsPTypes typeParams
+
+            let key = paramedName templateNA.QName expandedTypeParams
 
             // See if type does not already exists
             if not <| found.ContainsKey key then
                 let templateTPs = (templateNA :> ITemplate).TypeParams
 
                 // Check that the type we're parameterising has the right number of type params
-                if not (typeParams.Length = templateTPs.Length) then
+                if not (expandedTypeParams.Length = templateTPs.Length) then
                     failwithf "Parameterisation of type %s has too many parameters: %s" templateNA.QName key
 
-                let env = Map.ofSeq <| Seq.zip templateTPs typeParams
+                let env = Map.ofSeq <| Seq.zip templateTPs expandedTypeParams
 
                 // Create a placeholder concrete template type so during the expansion phase it can reference itself
                 let newNA = NamespaceDeclA(Interface("",Public,ref [],[]), Pos.NilPos)
@@ -285,7 +287,7 @@ let expandTemplates (program:list<NDA>) =
             else
                 Type found.[key]
     
-    let findTemplateExpansionsPTypes ptypes = List.map findTemplateExpansionsPType ptypes
+    and findTemplateExpansionsPTypes ptypes = List.map findTemplateExpansionsPType ptypes
 
     let findTemplateExpansionsParams params_ = List.map (fun (p:Param) -> findTemplateExpansionsPType p.PType) params_
 

@@ -255,8 +255,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
 
     let bindPointerType t = Option.bind (fun t -> Some <| pointerType t 0u) t
 
+
     member val Item = item with get, set
-    override x.ItemObj = upcast item
+    override x.ItemObj = upcast x.Item
 
     member x.CtorCA = match x.GetRef(ProcKey ("ctor", [])) with Some (ClassRef cA) -> cA
 
