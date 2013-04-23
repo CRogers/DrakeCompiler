@@ -335,6 +335,5 @@ let expandTemplates (program:list<NDA>) =
     let expandedTemplates = found.Values
 
     // Return non-template class and expanded templates
-    Seq.append nonTemplates expandedTemplates
-    |> List.ofSeq
+    List.ofSeq expandedTemplates
 

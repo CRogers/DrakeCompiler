@@ -60,6 +60,7 @@ let annotate (program:Program) =
     Templates.annotateTypeParams flatProg
 
     expandTypes globals flatProg
+    let flatProg = Templates.expandTemplates flatProg
 
     // Find the binops
     let binops = findBinops flatProg

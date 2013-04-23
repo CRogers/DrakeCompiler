@@ -55,6 +55,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | Dot (dotEA, name) ->
                 // Hopefully, the Call option should have taken care of procedures, leaving only variables to do
 
+                aTE dotEA
+
                 // First see if it is a static var
                 let staticPos = match dotEA.Item with
                     | VarStatic ptype ->
@@ -72,7 +74,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 // If it's not a static var it must be an instance var
                 let newDot = 
                     if staticPos = None then
-                        aTE dotEA
+                        //aTE dotEA
                         match dotEA.PType with
                             | Type nA -> match nA.GetRef <| VarKey name with
                                 | None -> failwithf "Cannot find member %s in %s" name nA.QName
@@ -153,6 +155,9 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | Assign (lvalue, innerExprA) ->
                 aTE lvalue
                 aTE innerExprA
+                // Check they have the same types
+                if not (lvalue.PType = Undef) && not (lvalue.PType = innerExprA.PType) then
+                    failwithf "Assignment expected type %s but got %s" (lvalue.PType.ToString()) (innerExprA.PType.ToString())  
                 innerExprA.PType
             | DeclVar (name, assignA) ->
                 // Since we have declared a variable, add a reference object for it
@@ -219,7 +224,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
         match nA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
                 // Ref for the ctor
-                let ctorRef = Ref(name, Type nA, StaticProcRef)
+                let ctorRef = Ref("ctor", Type nA, StaticProcRef)
                 nA.CtorCA.Ref <- ctorRef
 
                 // Make refs for the cAs so they can reference eachother. Left for static, Right for not static

@@ -219,7 +219,6 @@ classDecls:
             applyTypeParamsConstraints \$4 \$9 cA \$13
         }
 
-
 expr0OrNop:
     | /* empty */
         { nop }
@@ -233,12 +232,11 @@ expr0:
         { eaa (Seq (ref \$1, ref \$2)) \$1 \$2 }
 
 expr1:
-    | IDENT EQUALS expr3 SEMI
-        {   let var = ea (Var <| v \$1) (p \$1) 
-            ebb (Assign (var, \$3)) (p \$1) \$4 }
-    | expr4 LSQUARE expr3 RSQUARE EQUALS expr3 SEMI
+    /*| expr4 LSQUARE expr3 RSQUARE EQUALS expr3 SEMI
         {   let dot = eab (Dot (\$1, "indexer")) \$1 \$2
-            eab (Call (dot, [\$3; \$6])) \$1 \$7 }
+            eab (Call (dot, [\$3; \$6])) \$1 \$7 }*/
+    | expr4 EQUALS expr3 SEMI
+        {   eab (Assign (\$1, \$3)) \$1 \$4 }
     | VAR IDENT EQUALS expr3 SEMI
         {   let var = ea (Var (v \$2)) (p \$2)
             let assign = eba (Assign (var, \$4)) (p \$2) \$4
@@ -287,10 +285,10 @@ $for(x in [8,16,32,64])\
 $endfor\
     | expr4 LPAR argList RPAR
         { eab (Call (\$1, \$3)) \$1 \$4 }
-    | expr4 LSQUARE expr3 RSQUARE
+    /*| expr4 LSQUARE expr3 RSQUARE
         {   let dot = eab (Dot (\$1, "indexer")) \$1 \$2
             eab (Call (dot, [\$3])) \$1 \$4 
-        }
+        }*/
     | expr5
         { \$1 }
 

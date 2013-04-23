@@ -36,6 +36,16 @@ let genMalloc externs bldr (nA:NDA) =
 
 let rec genExpr pIfaceTy func bldr (eA:ExprA) =
     let genE = genExpr pIfaceTy func bldr
+    
+    let genLValue (lvalue:ExprA) =
+        match lvalue.Item with
+            | Var n -> match lvalue.GetRef(n) with
+                | Some ref -> ref.ValueRef.Value
+            | DotStatic (nA, cA) ->
+                failwithf "unimplemented 347853"
+            | DotInstance (dotEA, cA) ->
+                let dotE = genExpr pIfaceTy func bldr dotEA
+                genClassVarGEP bldr dotE cA.Offset
 
     let genArgsWithCasts eAs params_ =
         Seq.map2 (fun eA (p:Param) -> match (ptypeToNA p.PType).Item with
@@ -105,14 +115,7 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             genE assignA
 
         | Assign (lvalue, right) ->
-            let addr = match lvalue.Item with
-                | Var n -> match eA.GetRef(n) with
-                    | Some ref -> ref.ValueRef.Value
-                | DotStatic (nA, cA) ->
-                    failwithf "unimplemented 347853"
-                | DotInstance (dotEA, cA) ->
-                    let dotE = genExpr pIfaceTy func bldr dotEA
-                    genClassVarGEP bldr dotE cA.Offset    
+            let addr = genLValue lvalue
 
             let e = genE right
             buildStore bldr e addr
@@ -187,7 +190,7 @@ let genClass mo pIfaceTy (cA:ClassDeclA) =
             ()
 
 
-let genNamespace externs mo pIfaceTy (nA:NamespaceDeclA) =
+let genNamespace externs globals mo pIfaceTy (nA:NamespaceDeclA) =
     match nA.Item with
         | Class (name, vis, isStruct, ifaces, cAs) ->
             // Make object allocation ctor func
@@ -203,8 +206,9 @@ let genNamespace externs mo pIfaceTy (nA:NamespaceDeclA) =
             
             let initClassVars (cA:ClassDeclA) = match cA.Item with
                 | ClassVar (name, vis, NotStatic, ptype, eA) ->
-                    let expr = genExpr pIfaceTy ctorFunc bldr eA
-                    genClassVarStore bldr this cA.Offset expr |> ignore
+                    if not (eA.PType = commonPtype globals Unit) then
+                        let expr = genExpr pIfaceTy ctorFunc bldr eA
+                        genClassVarStore bldr this cA.Offset expr |> ignore
                 | _ -> ()
 
             // Initialise instance variables
@@ -297,7 +301,7 @@ let gen (globals:GlobalStore) (program:list<NamespaceDeclA>) =
     let pIfaceTy = genStructs globals context mo nonBuiltins
 
     // Build the class/interface operations themselves
-    Seq.iter (genNamespace externs mo pIfaceTy) nonBuiltins
+    Seq.iter (genNamespace externs globals mo pIfaceTy) nonBuiltins
 
     // Generate the initial main function
     genMain mo program
