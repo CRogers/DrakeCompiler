@@ -70,12 +70,10 @@ let expandTypes (globals:GlobalStore) (program:list<NDA>) =
         let eA = match cA.Item with
             | ClassVar (name, vis, isStatic, ptype, eA) ->
                 ptype := newPType cA.Namespace cA.Usings !ptype
-                cA.QName <- qname
                 eA
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
                 expandParamsQName cA.Namespace cA.Usings !params_
                 returnType := newPType cA.Namespace cA.Usings !returnType
-                cA.QName <- qname
                 eA
 
         expandTypesExpr eA
@@ -86,7 +84,6 @@ let expandTypes (globals:GlobalStore) (program:list<NDA>) =
             | InterfaceProc (name, params_, returnType) ->
                 expandParamsQName iA.Namespace iA.Usings params_
                 returnType := newPType iA.Namespace iA.Usings !returnType
-                iA.QName <- qualifiedName iA.Namespace iname [name]
 
     //////////
     let expandTypesNamespace (nA:NDA) = 
@@ -144,7 +141,6 @@ let getGlobalRefs (program:Program) =
         iterAST foldASTNamespaceDecl (fun (annot:Annot) -> annot.NamespaceDecl <- Some nA) nA |> ignore
 
         let qname = qualifiedName namespace_ nA.Name []
-        nA.QName <- qname
         (qname, nA)
 
     //////////

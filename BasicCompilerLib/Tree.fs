@@ -9,6 +9,11 @@ open System.Diagnostics
 open System
 open Util
 
+let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
+    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
+        then ""
+        else "." + String.Join(".", extraNames)
+
 type RefType =
     | LocalRef
     | InstanceVarRef
@@ -86,6 +91,7 @@ and ITemplate = interface
     abstract TypeParams:list<string> with get, set
     abstract TypeConstraints:list<Constraint> with get, set
     abstract TypeEnv:TypeParamEnv with get, set
+    abstract Template:option<ITemplate> with get, set
     end
 
 and CIRef = 
@@ -105,7 +111,6 @@ and [<AbstractClass>] Annot(pos:Pos) =
     abstract member ItemObj : obj
     member x.ItemAs<'a>():'a = downcast x.ItemObj
 
-    member val QName = "" with get, set
     member val Usings:list<string> = [] with get, set
     member val Namespace = "" with get, set
     member val NamespaceDecl:Option<NamespaceDeclA> = None with get, set
@@ -172,6 +177,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Item = item with get, set
     override x.ItemObj = upcast x.Item
 
+    member x.QName = x.NamespaceDecl.Value.QName + "." + x.Name
     member val Offset = -1 with get, set
     member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType:option<TypeRef> = None with get, set
@@ -184,6 +190,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
         member val TypeParams = [] with get, set
         member val TypeConstraints = [] with get, set
         member val TypeEnv = Map.empty with get, set
+        member val Template = None with get, set
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -223,6 +230,7 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
     member x.Item = item
     override x.ItemObj = upcast item
 
+    member x.QName = x.NamespaceDecl.Value.QName + "." + x.Name
     member val GlobalOffset = -1 with get, set
     member val FuncType:option<TypeRef> = None with get, set
 
@@ -230,6 +238,7 @@ and InterfaceDeclA(item:InterfaceDecl, pos:Pos) =
         member val TypeParams = [] with get, set
         member val TypeConstraints = [] with get, set
         member val TypeEnv = Map.empty with get, set
+        member val Template = None with get, set
 
     member x.PType = match x.Item with
         | InterfaceProc (_, params_, returnType) -> !returnType
@@ -261,6 +270,8 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
 
     member x.CtorCA = match x.GetRef(ProcKey ("ctor", [])) with Some (ClassRef cA) -> cA
 
+    member x.QName = qualifiedName x.Namespace x.Name []
+
     member val AllInterfaces:list<NamespaceDeclA> = [] with get, set
     member val ImplementedBy:list<NamespaceDeclA> = [] with get, set
 
@@ -283,6 +294,7 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         member val TypeParams = [] with get, set
         member val TypeConstraints = [] with get, set
         member val TypeEnv = Map.empty with get, set
+        member val Template = None with get, set
 
     member x.IsClass = match x.Item with
         | Class _ -> true
@@ -355,11 +367,6 @@ let paramsToPtype (params_:list<Param>) =
 
 let paramsToPtypeString (params_:list<Param>) =
     List.map userTypeToString <| paramsToPtype params_
-
-let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
-    namespace_ + "::" + classInterfaceName + if Seq.isEmpty extraNames
-        then ""
-        else "." + String.Join(".", extraNames)
 
 let isQualifiedName (name:string) = name.Contains("::")
 
