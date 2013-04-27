@@ -169,4 +169,4 @@ let getGlobalRefs (program:Program) =
     let globals = concatMap getGlobalRefsCU program
 
     // Now make them into a map
-    Map.ofSeq globals
+    ref <| Map.ofSeq globals

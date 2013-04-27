@@ -40,7 +40,9 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
     let genLValue (lvalue:ExprA) =
         match lvalue.Item with
             | Var n -> match lvalue.GetRef(n) with
-                | Some ref -> ref.ValueRef.Value
+                | Some ref -> match ref.RefType with
+                    | LocalRef -> ref.ValueRef.Value
+                    | InstanceVarRef cA -> genClassVarGEP bldr (buildLoad bldr (lvalue.GetRef("this").Value.ValueRef.Value) "") cA.Offset
             | DotStatic (nA, cA) ->
                 failwithf "unimplemented 347853"
             | DotInstance (dotEA, cA) ->
@@ -62,7 +64,7 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
                 | Some r -> match r.RefType with
                     | LocalRef -> buildLoad bldr r.ValueRef.Value r.Name
                     | StaticProcRef -> r.ValueRef.Value
-                    //| InstanceVarRef -> genClassVarLoad (buildLoad bldr (eA.GetRef("this").Value.ValueRef) "")
+                    | InstanceVarRef cA -> genClassVarLoad bldr (buildLoad bldr (eA.GetRef("this").Value.ValueRef.Value) "") cA.Offset
 
         | VarStatic _   -> failwithf "Compiler fail: This VarStatic should have been lowered to a more specific Dot in the annotation stage"
         | Dot _         -> failwithf "Compiler fail: This Dot should have been lowered to a more specific Dot in the annotation stage"
@@ -79,8 +81,7 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             genClassVarLoad bldr e cA.Offset
 
         | Cast (ptype, eA) ->
-            let e = genE eA
-            buildBitCast bldr e (getInstPointTy !ptype) ""
+            buildBitCast bldr (genE eA) pIfaceTy ""
 
         | CallStatic (cA, args) ->
             let argEs = genArgsWithCasts args cA.Params |> Array.ofSeq

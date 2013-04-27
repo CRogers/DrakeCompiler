@@ -92,7 +92,6 @@ let annotateTypeParams (program:list<NDA>) =
 
 
 
-open System.Collections.Generic
 open Util
 
 // Find template invocations, then try and expand the templates from that
@@ -337,7 +336,7 @@ and findTemplateExpansionsNamespace found (templateNA:NDA) =
             findTemplateExpansionsPTypes found !ifaces |> ignore
             Seq.iter (findTemplateExpansionsInterface found) iAs
     
-let expandTemplates (program:list<NDA>) =
+let expandTemplates (globals:GlobalStoreRef) (program:list<NDA>) =
     // Filter out the original, non-expanded templates
     let nonTemplates = filterOutTemplates program
 
@@ -346,6 +345,9 @@ let expandTemplates (program:list<NDA>) =
     
     // Search each of them
     Seq.iter (findTemplateExpansionsNamespace found) nonTemplates
+
+    // Change the Globals
+    globals := !found
 
     // Return the expanded templates
     List.ofSeq <| Seq.map snd (Map.toSeq !found)

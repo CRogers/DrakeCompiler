@@ -59,17 +59,17 @@ let annotate (program:Program) =
 
     Templates.annotateTypeParams flatProg
 
-    expandTypes globals flatProg
-    let flatProg = Templates.expandTemplates flatProg
+    expandTypes !globals flatProg
+    let flatProg = Templates.expandTemplates globals flatProg
 
     // Find the binops
     let binops = findBinops flatProg
 
     annotateCIRefs flatProg
-    annotateInterfaces globals flatProg
+    annotateInterfaces flatProg
 
     annotateTypes globals binops flatProg
 
     fixNonStaticFunctionParams flatProg
-
-    (globals, flatProg) 
+    
+    (!globals, flatProg) 

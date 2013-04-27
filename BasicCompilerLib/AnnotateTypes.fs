@@ -14,7 +14,7 @@ process check them
 
 *)
 
-let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<NamespaceDeclA>) =
+let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) (program:seq<NamespaceDeclA>) =
 
     /////////////
     let lowerBinopToCall (eA:ExprA) = match eA.Item with
@@ -36,8 +36,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | Undef -> annotateTypesExpr localVars eA.Refs nextEA
             | _ -> ()
         eA.PType <- match eA.Item with
-            | ConstInt (size, _) -> commonPtype globals <| Int size
-            | ConstBool _        -> commonPtype globals Bool
+            | ConstInt (size, _) -> commonPtype !globals <| Int size
+            | ConstBool _        -> commonPtype !globals Bool
             | Var n ->
                 // See if it's a local ref
                 match eA.GetRef(n) with
@@ -64,7 +64,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                     | VarStatic ptype ->
                         let n = match !ptype with InitialType n -> n
                         match dotEA.GetRef n with
-                            | None -> match getGlobal globals eA.Namespace eA.Usings n with
+                            | None -> match getGlobal !globals eA.Namespace eA.Usings n with
                                 | None -> failwithf "Cannot find class/interface %s" n
                                 | Some nA -> match nA.GetRef <| VarKey name with
                                     | None -> failwithf "Cannot find existent member %s in %s" name nA.QName
@@ -140,6 +140,8 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                         | Var n -> instanceCall dotEA dotName
                         | VarStatic ptype -> staticCall (ptypeToNA !ptype) dotName
                         | _ -> instanceCall dotEA dotName
+                    //| DotTemplate (dotEA, dotName, typeParams) ->
+                        
                     | Var n -> localCall n
                 
                 eA.Item <- loweredCall
@@ -172,9 +174,9 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 assignA.PType
             | Return exprA ->
                 aTE exprA
-                commonPtype globals Unit
+                commonPtype !globals Unit
             | ReturnVoid ->
-                commonPtype globals Unit
+                commonPtype !globals Unit
             | If (test, then_, else_) ->
                 aTE test
                 aTE then_
@@ -183,15 +185,15 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
             | While (test, body) ->
                 aTE test
                 aTE body
-                commonPtype globals Unit
+                commonPtype !globals Unit
             | Seq (e1A, e2A) ->
                 aTE !e1A
                 // Since e2A is lexically below and and in the same scope as e1A, all 
                 // e1A's references also appear in e2A
                 annotateTypesExpr localVars (!e1A).Refs !e2A
-                commonPtype globals Unit
+                commonPtype !globals Unit
             | Nop ->
-                commonPtype globals Unit
+                commonPtype !globals Unit
 
 
     /////////////
@@ -232,7 +234,7 @@ let annotateTypes (globals:GlobalStore) (binops:BinopStore) (program:seq<Namespa
                 // Make refs for the cAs so they can reference eachother. Left for static, Right for not static
                 let classLevelRefs = 
                     List.map (fun (cA:ClassDeclA) ->
-                        let ref = Ref(cA.Name, cA.PType, if cA.IsProc then (if cA.IsStatic = Static then StaticProcRef else InstanceProcRef) else InstanceVarRef)
+                        let ref = Ref(cA.Name, cA.PType, if cA.IsProc then (if cA.IsStatic = Static then StaticProcRef else InstanceProcRef) else InstanceVarRef cA)
                         cA.Ref <- ref
                         either (isStatic cA.IsStatic) (cA.Name, ref)) cAs
 

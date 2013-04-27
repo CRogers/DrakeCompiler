@@ -9,7 +9,7 @@ Work out interface inheritance/check there are no cycles etc
 open Tree
 open System.Collections.Generic
 
-let annotateInterfaces (globals:GlobalStore) (program:list<NDA>) =
+let annotateInterfaces (program:list<NDA>) =
 
     ///////////
     let setImplementedBy (nA:NDA) =

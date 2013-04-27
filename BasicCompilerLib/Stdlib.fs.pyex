@@ -6,7 +6,7 @@ namespace System {
 
 $for((x, s) in [(8,"B"), (16,"S"), (32,""), (64,"L")])\
 	struct Int$(x) {
-$for(binop in ["+", "-", "/", "*", "%", "&", "|"])\
+$for(binop in ["+", "-", "/", "*", "%", "&", "|", "=="])\
 		public static $(binop)(a: Int$(x), b: Int$(x)): Int$(x) {
 			return 0$(s);
 		}

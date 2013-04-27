@@ -14,15 +14,6 @@ let qualifiedName namespace_ classInterfaceName (extraNames:seq<string>) =
         then ""
         else "." + String.Join(".", extraNames)
 
-type RefType =
-    | LocalRef
-    | InstanceVarRef
-    | StaticVarRef
-    | InstanceProcRef
-    | StaticProcRef
-with
-    override x.ToString() = fmt x
-
 type Name = string
 type InterfaceName = string
 
@@ -63,6 +54,14 @@ and PType =
         | ParamedType (ptype, params_) -> sprintf "ParamedType (%s, [%s])" (ptype.ToString()) <| Util.joinMap ", " (fun x -> x.ToString()) params_
         | _ -> fmt x
 
+and RefType =
+    | LocalRef
+    | InstanceVarRef of ClassDeclA
+    | StaticVarRef
+    | InstanceProcRef
+    | StaticProcRef
+with
+    override x.ToString() = fmt x
 and Ref(name: string, ptype:PType, reftype:RefType) =
     member x.Name = name
     member val PType = ptype with get, set
@@ -481,6 +480,7 @@ let rec lastInSeqAndPrev (eA:ExprA) =
 let isLastInSeqRet eA = isReturn <| lastInSeq eA
 
 type GlobalStore = Map<string, NamespaceDeclA>
+type GlobalStoreRef = GlobalStore ref
 type BinopStore = Map<NPKey, CIRef>
 
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =

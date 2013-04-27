@@ -12,7 +12,7 @@ let getBestOverload nAname (cirefs:Map<NPKey,CIRef>) (name:string) (argTypeNAs:l
     // Format method as a string for error reporting
     let fmtMethod (args:seq<string>) = sprintf "%s(%s)" name <| System.String.Join(", ", args)
 
-    // Get all procs which have the same name
+    // Get all procs which have the same name, length and number of type params
     let procArgsSeq = 
         cirefs
         |> Map.filter (fun k v -> match k with ProcKey (n, args) -> n = name && args.Length = argTypeNAs.Length | _ -> false)
