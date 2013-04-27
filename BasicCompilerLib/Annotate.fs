@@ -23,7 +23,7 @@ let flatternAST (program:Program) =
 
 
 // The "this" parameter at the start of instance methods is implicit - we must add it
-let fixNonStaticFunctionParams (nAs:list<NamespaceDeclA>) =
+let fixNonStaticFunctionParams (nAs:seq<NamespaceDeclA>) =
     let classProcs = getClassDecls nAs
     Seq.iter (fun (cA:ClassDeclA) -> match cA.Item with
         | ClassProc (_, _, NotStatic, params_, _, _) ->
@@ -31,7 +31,7 @@ let fixNonStaticFunctionParams (nAs:list<NamespaceDeclA>) =
         | _ -> ()) classProcs
 
 
-let findBinops (nAs:list<NamespaceDeclA>) =
+let findBinops (nAs:seq<NamespaceDeclA>) =
 
     let groupedByKey = 
         getClassDecls nAs
@@ -54,22 +54,19 @@ let findBinops (nAs:list<NamespaceDeclA>) =
 let annotate (program:Program) =
     let globals = getGlobalRefs program
 
-    // Flattern tree to class/interface level
-    let flatProg = flatternAST program
+    Templates.annotateTypeParams <| globalsToNAs !globals
 
-    Templates.annotateTypeParams flatProg
-
-    expandTypes !globals flatProg
-    let flatProg = Templates.expandTemplates globals flatProg
+    expandTypes !globals
+    Templates.expandTemplates globals
 
     // Find the binops
-    let binops = findBinops flatProg
+    let binops = findBinops <| globalsToNAs !globals
 
-    annotateCIRefs flatProg
-    annotateInterfaces flatProg
+    annotateCIRefs <| globalsToNAs !globals
+    annotateInterfaces  <| globalsToNAs !globals
 
-    annotateTypes globals binops flatProg
+    annotateTypes globals binops
 
-    fixNonStaticFunctionParams flatProg
+    fixNonStaticFunctionParams <| globalsToNAs !globals
     
-    (!globals, flatProg) 
+    !globals 

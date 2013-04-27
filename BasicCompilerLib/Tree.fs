@@ -483,6 +483,8 @@ type GlobalStore = Map<string, NamespaceDeclA>
 type GlobalStoreRef = GlobalStore ref
 type BinopStore = Map<NPKey, CIRef>
 
+let globalsToNAs (globalStore:GlobalStore) = globalStore |> Map.toSeq |> Seq.map snd
+
 type Func(name: string, func: ValueRef, params_: Map<string, ValueRef>) =
     member x.Name = name
     member x.Func = func

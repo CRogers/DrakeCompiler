@@ -68,9 +68,9 @@ let compile (text:string) =
         let lexed = lexText Stdlib.stdlibTxt
 
         let parsed = [parse textLines; parseStdlib ()]
-        let globals, annotated = Annotate.annotate parsed
-        Check.check globals annotated
-        let llvmModule = Gen.gen globals annotated
+        let globals = Annotate.annotate parsed
+        Check.check globals
+        let llvmModule = Gen.gen globals
         CompilerResult(textLines, [], llvmModule)
     with
         | ex -> 

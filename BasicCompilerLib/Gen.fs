@@ -279,15 +279,17 @@ let genMain mo (program:seq<NamespaceDeclA>) =
     buildRet bldr (genConstInt i32 0UL) |> ignore
             
 
-let gen (globals:GlobalStore) (program:list<NamespaceDeclA>) =
+let gen (globals:GlobalStore) =
+    let program = globalsToNAs globals
+
     let context = contextCreate ()
     let mo = moduleCreateWithNameInContext (DateTime.Now.ToLongDateString()) context
 
     // Define some important externs
     let externs = genExterns mo
 
-    // Separat classes into builtins and not builtins
-    let all = List.map (fun (nA:NamespaceDeclA) -> Util.either nA.IsBuiltin nA) program
+    // Separate classes into builtins and not builtins
+    let all = Seq.map (fun (nA:NamespaceDeclA) -> Util.either nA.IsBuiltin nA) program
     let builtins = Util.lefts all
     let nonBuiltins = List.ofSeq <| Util.rights all
 

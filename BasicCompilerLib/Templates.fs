@@ -3,7 +3,7 @@
 open Tree
 
 // Go through InitialTypes and change them to TypeParams when necessary
-let annotateTypeParams (program:list<NDA>) =
+let annotateTypeParams (program:seq<NDA>) =
 
     /////////
     let checkNoRepeatedTypeParams typeParamNames =
@@ -108,8 +108,8 @@ let copyOverAnnot (template:Annot) (new_:Annot) =
     new_.Namespace <- template.Namespace
     new_.Usings <- template.Usings
 
-let filterOutTemplates(items: list<#ITemplate>) =
-    List.filter (not << isNonExpandedTemplate) items
+let filterOutTemplates(items: seq<#ITemplate>) =
+    Seq.filter (not << isNonExpandedTemplate) items
 
 let getTypeParam env name = match Map.tryFind name env with
     | Some v -> v
@@ -218,7 +218,8 @@ let expandTemplateN found env (newNA:NDA) (templateNA:NDA) =
             let newIfaces = expandTemplatePTypes found env !ifaces
             let newCAs =
                 filterOutTemplates cAs
-                |> List.map (expandTemplateC found env)
+                |> Seq.map (expandTemplateC found env)
+                |> List.ofSeq
                 
             newName, Class (newName, vis, isStruct, ref newIfaces, newCAs)
 
@@ -227,7 +228,8 @@ let expandTemplateN found env (newNA:NDA) (templateNA:NDA) =
             let newIfaces = expandTemplatePTypes found env !ifaces
             let newIAs =
                 filterOutTemplates iAs
-                |> List.map (expandTemplateI found env)
+                |> Seq.map (expandTemplateI found env)
+                |> List.ofSeq
                 
             newName, Interface (newName, vis, ref newIfaces, newIAs)
 
@@ -336,7 +338,9 @@ and findTemplateExpansionsNamespace found (templateNA:NDA) =
             findTemplateExpansionsPTypes found !ifaces |> ignore
             Seq.iter (findTemplateExpansionsInterface found) iAs
     
-let expandTemplates (globals:GlobalStoreRef) (program:list<NDA>) =
+let expandTemplates (globals:GlobalStoreRef) =
+    let program = globalsToNAs !globals
+
     // Filter out the original, non-expanded templates
     let nonTemplates = filterOutTemplates program
 
@@ -348,8 +352,5 @@ let expandTemplates (globals:GlobalStoreRef) (program:list<NDA>) =
 
     // Change the Globals
     globals := !found
-
-    // Return the expanded templates
-    List.ofSeq <| Seq.map snd (Map.toSeq !found)
 
 

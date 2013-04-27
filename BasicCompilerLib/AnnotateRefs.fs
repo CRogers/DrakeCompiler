@@ -12,7 +12,7 @@ and make a default map of references that can be added for everything
 
 
 // Go through an expand all types that are shorthand (eg Int32 instead of System::Int32) and make them longhand
-let expandTypes (globals:GlobalStore) (program:list<NDA>) =
+let expandTypes (globals:GlobalStore) =
 
     //////////
     let getQName namespace_ usings name =
@@ -96,11 +96,11 @@ let expandTypes (globals:GlobalStore) (program:list<NDA>) =
                 Seq.iter (expandTypesInterface name) iAs
 
 
-    Seq.iter expandTypesNamespace program
+    Seq.iter expandTypesNamespace <| globalsToNAs globals
     
 
 // Find each type's procedures/vars and add references for them
-let annotateCIRefs (program:list<NamespaceDeclA>) =
+let annotateCIRefs (program:seq<NDA>) =
 
     //////////
     let getCIRefClass (cA:CDA) = (classNPKey cA, ClassRef cA)
@@ -139,9 +139,7 @@ let getGlobalRefs (program:Program) =
     let getGlobalRefsNamespace namespace_ (nA:NamespaceDeclA) =
         // Identify sub things with which class they are in
         iterAST foldASTNamespaceDecl (fun (annot:Annot) -> annot.NamespaceDecl <- Some nA) nA |> ignore
-
-        let qname = qualifiedName namespace_ nA.Name []
-        (qname, nA)
+        (nA.QName, nA)
 
     //////////
     let getGlobalRefsTop (tA:TopDeclA) =

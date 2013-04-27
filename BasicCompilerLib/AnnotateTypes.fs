@@ -14,7 +14,7 @@ process check them
 
 *)
 
-let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) (program:seq<NamespaceDeclA>) =
+let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
 
     /////////////
     let lowerBinopToCall (eA:ExprA) = match eA.Item with
@@ -246,4 +246,4 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) (program:seq<Name
 
 
 
-    Seq.iter annotateTypesNamespace program
+    Seq.iter annotateTypesNamespace <| globalsToNAs !globals

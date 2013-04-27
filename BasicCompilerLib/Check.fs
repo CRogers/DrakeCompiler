@@ -14,7 +14,7 @@ let returnVoidA globals (refs:Map<string,Ref>) =
     rvA.AddRefs(refs)
     rvA
 
-let checkReturns globals (program:list<NamespaceDeclA>) =
+let checkReturns globals (program:seq<NamespaceDeclA>) =
     let rec isBlocked eA =
         let foundIsBlocked (eA:ExprA) = match eA.Item with
             | ReturnVoid
@@ -67,5 +67,5 @@ let checkReturns globals (program:list<NamespaceDeclA>) =
     getClassDecls program
     |> Seq.iter innerPart
 
-let check globals (program:list<NamespaceDeclA>) =
-    checkReturns globals program
+let check globals =
+    checkReturns globals <| globalsToNAs globals

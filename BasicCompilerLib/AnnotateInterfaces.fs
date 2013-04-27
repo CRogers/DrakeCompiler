@@ -9,7 +9,7 @@ Work out interface inheritance/check there are no cycles etc
 open Tree
 open System.Collections.Generic
 
-let annotateInterfaces (program:list<NDA>) =
+let annotateInterfaces (program:seq<NDA>) =
 
     ///////////
     let setImplementedBy (nA:NDA) =
@@ -36,7 +36,7 @@ let annotateInterfaces (program:list<NDA>) =
             |> failwithf "Duplicate interfaces for %s: %s" nA.QName
 
     /////////
-    let detectIfaceLoop (program:list<NDA>) =
+    let detectIfaceLoop (program:seq<NDA>) =
         let SCCs = Util.stronglyConnectedComponents (fun (nA:NDA) -> Seq.ofList nA.Interfaces) program
         let badSCCs = Seq.filter (fun (hs:HashSet<_>) -> hs.Count > 1) SCCs
 
@@ -48,7 +48,7 @@ let annotateInterfaces (program:list<NDA>) =
         ()
 
     //////////
-    let rec setAllNAsForIfaces (nAs:list<NDA>) =
+    let rec setAllNAsForIfaces (nAs:seq<NDA>) =
         seq { for nA in nAs do
             if nA.AllInterfaces = [] then
                 nA.AllInterfaces <- nA.Interfaces @ (setAllNAsForIfaces nA.Interfaces |> List.ofSeq)
