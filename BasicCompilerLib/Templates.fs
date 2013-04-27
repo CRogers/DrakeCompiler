@@ -121,23 +121,45 @@ let paramedName name typeParams = sprintf "%s%s" name <| if Seq.length typeParam
 
 let paramedNameEnv name template typeParamEnv = paramedName name <| Seq.map (fun tpn -> getTypeParam typeParamEnv tpn) (template :> ITemplate).TypeParams
 
-let rec expandTemplatePType found env ptype = match ptype with
+let rec findInFoundOrMakeNew found (templateNA:NDA) (expandedTypeParams:list<PType>) =
+    let key = paramedName templateNA.QName expandedTypeParams
+    match Map.tryFind key !found with
+        | None ->
+            let templateTPs = (templateNA :> ITemplate).TypeParams
+
+            // Check that the type we're parameterising has the right number of type params
+            if not (expandedTypeParams.Length = templateTPs.Length) then
+                failwithf "Parameterisation of type %s has too many parameters: %s" templateNA.QName key
+
+            let env = Map.ofSeq <| Seq.zip templateTPs expandedTypeParams
+
+            // Create a placeholder concrete template type so during the expansion phase it can reference itself
+            let newNA = NamespaceDeclA(Interface("",Public,ref [],[]), Pos.NilPos)
+            found := Map.add key newNA !found
+                               
+            // Expand it out properly
+            expandTemplateN found env newNA templateNA |> ignore           
+
+            // Add it to the search
+            findTemplateExpansionsNamespace found newNA
+
+            Type newNA
+        | Some nA ->
+            Type nA
+
+and expandTemplatePType found env ptype = match ptype with
     | TypeParam p -> getTypeParam env p
     | Type nA -> ptype
     | ParamedType (Type templateNA, typeParams) ->
-        //ParamedType (ptype, List.map (expandTemplatePType env) typeParams)
-        let expandedParams = List.map (expandTemplatePType found env) typeParams
-        let key = paramedName templateNA.QName expandedParams
-        match Map.tryFind key !found with
-            | Some nA -> Type nA
-            | None -> failwithf "Type %s not found in template ptype expansion stage!" key
+        let expandedTypeParams = expandTemplatePTypes found env typeParams
+        findInFoundOrMakeNew found templateNA expandedTypeParams
 
-let expandTemplatePTypes found env ptypes = List.map (expandTemplatePType found env) ptypes
+and expandTemplatePTypes found env ptypes = List.map (expandTemplatePType found env) ptypes
 
-let expandTemplateParams found env params_ = List.map (fun (p:Param) -> Param(p.Name, expandTemplatePType found env p.PType)) params_
+and expandTemplateParams found env params_ = List.map (fun (p:Param) -> Param(p.Name, expandTemplatePType found env p.PType)) params_
     
 /////////
-let rec expandTemplateExpr found env (templateEA:ExprA) =
+and expandTemplateExpr found env (templateEA:ExprA) =
     let eTE = expandTemplateExpr found env
     let eTEr eRef = ref <| eTE !eRef
     let eTP = expandTemplatePType found env
@@ -167,7 +189,7 @@ let rec expandTemplateExpr found env (templateEA:ExprA) =
 
 
 /////////
-let expandTemplateC found env (templateCA:CDA) =
+and expandTemplateC found env (templateCA:CDA) =
     let newC = match templateCA.Item with
         | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
             let newName = paramedNameEnv name templateCA env
@@ -192,7 +214,7 @@ let expandTemplateC found env (templateCA:CDA) =
     newCA
 
 /////////
-let expandTemplateI found env (templateIA:IDA) =
+and expandTemplateI found env (templateIA:IDA) =
     let newI = match templateIA.Item with
         | InterfaceProc (name, params_, returnType) ->
             let newName = paramedNameEnv name templateIA env
@@ -209,7 +231,7 @@ let expandTemplateI found env (templateIA:IDA) =
     newIA
 
 /////////
-let expandTemplateN found env (newNA:NDA) (templateNA:NDA) =
+and expandTemplateN found env (newNA:NDA) (templateNA:NDA) =
     let toAnnotList items = List.map (fun cA -> cA :> Annot) items
 
     let newName, newN = match templateNA.Item with
@@ -246,38 +268,13 @@ let expandTemplateN found env (newNA:NDA) (templateNA:NDA) =
 
 
 /////////
-let rec findTemplateExpansionsPType found ptype = match ptype with
+and findTemplateExpansionsPType found ptype = match ptype with
     | TypeParam p -> failwithf "Shoudln't be finding TypeParams here"
     | Type nA -> ptype
     | ParamedType (Type templateNA, typeParams) ->
         let expandedTypeParams:list<PType> = findTemplateExpansionsPTypes found typeParams
-
-        let key = paramedName templateNA.QName expandedTypeParams
-
-        // See if type does not already exists
-        match Map.tryFind key !found with
-            | None ->
-                let templateTPs = (templateNA :> ITemplate).TypeParams
-
-                // Check that the type we're parameterising has the right number of type params
-                if not (expandedTypeParams.Length = templateTPs.Length) then
-                    failwithf "Parameterisation of type %s has too many parameters: %s" templateNA.QName key
-
-                let env = Map.ofSeq <| Seq.zip templateTPs expandedTypeParams
-
-                // Create a placeholder concrete template type so during the expansion phase it can reference itself
-                let newNA = NamespaceDeclA(Interface("",Public,ref [],[]), Pos.NilPos)
-                found := Map.add key newNA !found
-                               
-                // Expand it out properly
-                expandTemplateN found env newNA templateNA |> ignore           
-
-                // Add it to the search
-                findTemplateExpansionsNamespace found newNA
-
-                Type newNA
-            | Some nA ->
-                Type nA
+        findInFoundOrMakeNew found templateNA expandedTypeParams
+        
     
 and findTemplateExpansionsPTypes found ptypes = List.map (findTemplateExpansionsPType found) ptypes
 

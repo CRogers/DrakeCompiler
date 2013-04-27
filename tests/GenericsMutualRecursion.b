@@ -2,12 +2,16 @@ using System;
 
 namespace G {
 	class Foo`[T] {
+		private var bar:Bar`[T];
+
 		public static new():Foo`[T] {
 			return ctor();
 		}
 	}
 
 	class Bar`[T] {
+		private var foo:Foo`[T];
+
 		public static new():Bar`[T] {
 			return ctor();
 		}

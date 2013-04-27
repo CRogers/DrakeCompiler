@@ -10,27 +10,29 @@ namespace G {
 			return b;
 		}
 
-		public id`[A](a: A):T {
+		public id`[A](a: A, i: Int32):T {
+			return item;
+		}
+
+		public id`[A](a: A, i: Int8):T {
+			return item;
+		}
+
+		public id`[A,B](a: A, a:B):T {
 			return item;
 		}
 	}
 
 	class Program {
 		public static main() {
-			var b32 = Box`[Int32].new(3);
-			Console.println(b32.get`[Bool](true));
-
-			var bbool = Box`[Bool].new(true);
-			if (bbool.get`[Int8](1B)) {
-				Console.println(10);
-			}
+			var b = Box`[Bool].new(false);
+			b.id`[Int32](10);
 		}
 	}
 }
 
 
 /*<<<
-3
 10
 
 >>>*/
