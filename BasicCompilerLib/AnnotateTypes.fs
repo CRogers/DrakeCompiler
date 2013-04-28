@@ -30,10 +30,10 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
 
 
     /////////////
-    let rec annotateTypesExpr (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
+    let rec annotateTypesExpr instanceLevelRefs staticLevelRefs (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
         eA.AddRefs(refs)
         let aTE (nextEA:ExprA) = match nextEA.PType with
-            | Undef -> annotateTypesExpr localVars eA.Refs nextEA
+            | Undef -> annotateTypesExpr instanceLevelRefs staticLevelRefs localVars eA.Refs nextEA
             | _ -> ()
         eA.PType <- match eA.Item with
             | ConstInt (size, _) -> commonPtype !globals <| Int size
@@ -115,8 +115,7 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                                 failwithf "Method %s in %s is not static" (NPKeyPretty <| classNPKey cA) nA.QName
                             CallStatic (cA, exprAs)
 
-                let instanceCall dotEA dotName =
-                    aTE dotEA
+                let instanceCall (dotEA:ExprA) dotName =
                     match dotEA.PType with
                         | Type nA -> match getBestOverloadNA nA dotName argTypeNAs with
                             | ClassRef cA ->
@@ -134,14 +133,53 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                                 CallInstance (cA, this, exprAs)
                         | _ -> failwithf "Can only call class methods"
 
+                let expandMethod ptype typeParams isStatic methodName =
+                    let exNA = ptypeToNA ptype
+                    let exNAT = exNA :> ITemplate
+                    let templateNA = exNAT.Template.Value
+
+                    let cirefmap = Map.ofSeq <| seq {
+                        for unexpandedCA in getClassDecls [templateNA :?> NamespaceDeclA] do
+                            let unexpandedCAT = unexpandedCA :> ITemplate
+                            if unexpandedCAT.TypeParams.Length = Seq.length typeParams then
+                                let typeEnv = Seq.fold (fun state (k, v) -> Map.add k v state) exNAT.TypeEnv <| Seq.zip unexpandedCAT.TypeParams typeParams
+                                match unexpandedCA.Item with
+                                    | ClassProc (name, _, isSt, params_, _, _) when name = methodName && isSt = isStatic ->
+                                        let found = ref !globals
+                                        yield (nameParamsKey name <| Templates.expandTemplateParams found typeEnv !params_, (unexpandedCA, typeEnv))
+                                    | _ -> ()
+                    }
+
+                    let unexpandedCA, typeEnv = getBestOverload exNA.QName cirefmap methodName argTypeNAs
+
+                    // Expand CA and add it to the type's refs
+                    let expandedCA = Templates.expandTemplateC globals typeEnv unexpandedCA
+                    expandedCA.NamespaceDecl <- Some exNA
+                    exNA.AddRef(classNPKey expandedCA, ClassRef expandedCA)
+
+                    // Annotate it's types
+                    annotateTypesClass instanceLevelRefs staticLevelRefs expandedCA
+
+                    // Return new expanded name
+                    expandedCA.Name
+
                 let loweredCall = match feA.Item with
                     // See if it's a static call
-                    | Dot (dotEA, dotName) -> match dotEA.Item with
-                        | Var n -> instanceCall dotEA dotName
-                        | VarStatic ptype -> staticCall (ptypeToNA !ptype) dotName
-                        | _ -> instanceCall dotEA dotName
-                    //| DotTemplate (dotEA, dotName, typeParams) ->
-                        
+                    | Dot (dotEA, dotName) ->
+                        aTE dotEA
+                        match dotEA.Item with
+                            | VarStatic ptype -> staticCall (ptypeToNA !ptype) dotName
+                            | _ -> instanceCall dotEA dotName
+                    | DotTemplate (dotEA, dotName, typeParams) ->
+                        aTE dotEA
+                        match dotEA.Item with
+                            | VarStatic ptype ->
+                                expandMethod !ptype !typeParams Static dotName
+                                |> staticCall (ptypeToNA !ptype)
+                            | _ -> 
+                                expandMethod dotEA.PType !typeParams NotStatic dotName
+                                |> instanceCall dotEA
+
                     | Var n -> localCall n
                 
                 eA.Item <- loweredCall
@@ -190,34 +228,37 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                 aTE !e1A
                 // Since e2A is lexically below and and in the same scope as e1A, all 
                 // e1A's references also appear in e2A
-                annotateTypesExpr localVars (!e1A).Refs !e2A
+                annotateTypesExpr instanceLevelRefs staticLevelRefs localVars (!e1A).Refs !e2A
                 commonPtype !globals Unit
             | Nop ->
                 commonPtype !globals Unit
 
 
     /////////////
-    let annotateTypesClass instanceLevelRefs staticLevelRefs (cA:ClassDeclA) =
-        let eA = match cA.Item with
-            | ClassVar (name, vis, isStatic, ptype, eA) -> eA
+    and annotateTypesClass instanceLevelRefs staticLevelRefs (cA:ClassDeclA) =
+        let eA, refs = match cA.Item with
+            | ClassVar (name, vis, isStatic, ptype, eA) -> eA, []
             | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
                 // Add params as refs
-                Seq.iter (fun (p:Param) -> eA.AddRef(p.Name, Ref(p.Name, p.PType, LocalRef))) !params_
+                let paramRefs = List.map (fun (p:Param) -> (p.Name, Ref(p.Name, p.PType, LocalRef))) !params_
                 // If an instance method add the 'this' param
-                if isStatic = NotStatic then
-                    eA.AddRef("this", Ref("this", Type <| cA.NamespaceDecl.Value, LocalRef))
-                eA
+                let thisRef = if isStatic = NotStatic then [("this", Ref("this", Type <| cA.NamespaceDecl.Value, LocalRef))]
+                                                      else []
+                eA, paramRefs @ thisRef
 
         // Add ctor ref if it is a static class
-        let initRefs = match cA.IsStatic with
-            | NotStatic -> instanceLevelRefs
-            | Static -> staticLevelRefs
+        let initRefs = 
+            match cA.IsStatic with
+                | NotStatic -> instanceLevelRefs
+                | Static -> staticLevelRefs
+            |> (fun a -> Seq.append a refs)
+            |> Map.ofSeq
 
         let localVars = new List<Ref>()
 
         // Only annotate the expression if not a ctor
         if not cA.IsCtor then
-            annotateTypesExpr localVars initRefs eA
+            annotateTypesExpr instanceLevelRefs staticLevelRefs localVars initRefs eA
 
         eA.AddLocalVars(List.ofSeq localVars)
         cA.AddLocalVars(List.ofSeq localVars)
@@ -238,8 +279,8 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                         cA.Ref <- ref
                         either (isStatic cA.IsStatic) (cA.Name, ref)) cAs
 
-                let instanceLevelRefs = allEithers classLevelRefs |> Map.ofSeq
-                let staticLevelRefs = Seq.append [name, ctorRef] (lefts classLevelRefs) |> Map.ofSeq
+                let instanceLevelRefs = allEithers classLevelRefs
+                let staticLevelRefs = Seq.append [name, ctorRef] (lefts classLevelRefs)
 
                 Seq.iter (annotateTypesClass instanceLevelRefs staticLevelRefs) cAs
             | _ -> ()

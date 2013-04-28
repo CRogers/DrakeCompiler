@@ -12,7 +12,7 @@ let numberInterfaceProcs (nAs:seq<NDA>) =
     let mutable globalOffset = 0
 
     // For each item, if it is an interface, give an offset to each of it's InterfaceProcs
-    for iA in getInterfaceDecls nAs do
+    for iA in getCIInterfaceDecls nAs do
         iA.GlobalOffset <- globalOffset
         globalOffset <- globalOffset + 1
 
@@ -27,7 +27,7 @@ let createInterfaceType context vtableType =
 
 let createInitStructures context vtableType ifaceType (nA:NDA) =
     match nA.Item with
-        | Class (name, vis, isStruct, ifaces, cAs) ->
+        | Class (name, vis, isStruct, ifaces, _) ->
             nA.InstanceType <- Some (structCreateNamed context <| changeSRO nA.QName)
             nA.StaticType <- Some (structCreateNamed context <| changeSRO nA.QName + "+Static")
             nA.VTableType <- Some vtableType            
@@ -37,7 +37,8 @@ let createInitStructures context vtableType ifaceType (nA:NDA) =
 
 
 let createNamespaceStructures (nA:NDA) = match nA.Item with
-    | Class (name, vis, isStruct, ifaces, cAs) ->
+    | Class (name, vis, isStruct, ifaces, _) ->
+        let cAs = nA.ClassDeclAs
         let getLLVMVarTypes isStatic =
             let varTypesOptions =
                 Seq.mapi (fun i (cA:CDA) ->
@@ -81,12 +82,15 @@ let createClassProcStub mo (cA:CDA) =
             cA.FuncType <- Some funcTy
 
 let createClassProcStubs mo nAs =
-    Seq.iter (createClassProcStub mo) <| getClassDecls nAs
+    let cAs = getCIClassDecls nAs
+    for cA in cAs do
+        if not cA.IsCtor then
+            createClassProcStub mo cA
 
 let createVTableType vtableType ifaceType (nAs:list<NDA>) =
     // Mapping from vtable offset to function type
     let offsetTy = List.ofSeq <| seq {
-        for iA in getInterfaceDecls nAs do
+        for iA in getCIInterfaceDecls nAs do
             let argTys = List.toArray ((pointerType ifaceType 0u) :: [ for p in iA.Params -> getInstPointTy p.PType ])
             let funcTy = functionType (getInstPointTy iA.PType) argTys
             iA.FuncType <- Some funcTy
@@ -142,14 +146,14 @@ let createIfaceProcStub globals mo ifaceType (cA:CDA) = match cA.Item with
 
 
 let createVTable globals mo ifaceType numIProcs (nA:NDA) = match nA.Item with
-    | Class (_, _, _, _, cAs) ->
+    | Class (_, _, _, _, _) ->
         let vtableType = nA.VTableType.Value
 
         // Initialise the vtable with null pointers to functions
         let arr = [| for ty in getStructElementTypes vtableType -> constPointerNull ty |]
 
         // Add the functions appropriate for each implemented method
-        for cA in cAs do
+        for cA in nA.ClassDeclAs do
             match cA.DefiningMethod with
                 | None -> ()
                 | Some iA ->

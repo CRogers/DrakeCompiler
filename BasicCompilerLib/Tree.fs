@@ -259,15 +259,44 @@ and NamespaceDecl =
         | Interface (n, vis, ifaces, _) -> sprintf "Interface (%s, %s, %s)" n (vis.ToString()) (listTS !ifaces)
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
-    inherit AnnotRefs<NPKey,CIRef>(pos)
+    inherit Annot(pos)
+
+    let mutable _ctorCA:option<ClassDeclA> = None
+    let mutable refs:Map<NPKey,CIRef> = Map.empty;
+
+    let makeProcKey name params_ = ProcKey (name, List.map (fun (p:Param) -> match p.PType with (Type nA) -> nA.QName) params_)
+    let makeClassNPKey (cA:ClassDeclA) = match cA.Item with
+        | ClassProc _ -> makeProcKey cA.Name cA.Params
+        | ClassVar _ -> VarKey cA.Name
 
     let bindPointerType t = Option.bind (fun t -> Some <| pointerType t 0u) t
-
+    
+    member x.Refs =
+        match x.Item with
+            | Class (_, _, _, _, cAs) -> Seq.map (fun (cA:ClassDeclA) -> (makeClassNPKey cA, ClassRef cA)) cAs
+            | Interface (_, _, _, iAs) -> Seq.map (fun (iA:InterfaceDeclA) -> (makeProcKey iA.Name iA.Params, InterfaceRef iA)) iAs
+        |> Seq.append (Map.toSeq refs)
+        |> Seq.append (if x.IsClass then [(makeProcKey "ctor" [], ClassRef x.CtorCA)] else [])
+        |> Map.ofSeq
 
     member val Item = item with get, set
     override x.ItemObj = upcast x.Item
 
-    member x.CtorCA = match x.GetRef(ProcKey ("ctor", [])) with Some (ClassRef cA) -> cA
+    member x.AddRef(key, ref) = refs <- refs.Add(key, ref)
+    member x.AddRefs(refs:Map<NPKey,CIRef>) = Map.iter (fun key ref -> x.AddRef(key, ref)) refs
+    member x.AddRefs(refs) = Seq.iter (fun ref -> x.AddRef(ref)) refs
+    member x.GetRef(key) = Map.tryFind key x.Refs
+
+    member x.CtorCA =
+        match _ctorCA with
+            | Some cA -> cA
+            | None ->
+                let c = ClassProc ("ctor", Private, Static, ref [], ref <| Type x, ExprA(Nop, Pos.NilPos))
+                let cA = ClassDeclA (c, Pos.NilPos)
+                cA.IsCtor <- true
+                cA.NamespaceDecl <- Some x
+                _ctorCA <- Some cA
+                cA
 
     member x.QName = qualifiedName x.Namespace x.Name []
 
@@ -311,6 +340,8 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         | Class (_, _, isStruct, _, _) -> isStruct
         | Interface (_, _, _, _) -> NotStruct
 
+    member x.ClassDeclAs = Map.toSeq x.Refs |> Seq.map (fun (_, ClassRef cA) -> cA)
+
     member x.InterfacePTypes = match x.Item with
         | Class (_, _, _, ifaces, _) -> !ifaces
         | Interface (_, _, ifaces, _) -> !ifaces
@@ -318,12 +349,10 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.Interfaces = List.map (fun ptype -> match ptype with Type nA -> nA) x.InterfacePTypes
 
     [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
-    member x.InterfaceDeclAs = match x.Item with
-        | Interface (_, _, _, iAs) -> iAs
-        | _ -> failwithf "Can't get InterfaceDecls for anything but an interface" 
+    member x.InterfaceDeclAs = Map.toSeq x.Refs |> Seq.map (fun (_, InterfaceRef iA) -> iA)
 
     [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
-    member x.AllInterfaceProcs = concatMap (fun (nA:NamespaceDeclA) -> nA.InterfaceDeclAs) x.AllInterfaces
+    member x.AllInterfaceProcs = concatMap (fun (nA:NamespaceDeclA) -> match nA.Item with Interface (_,_,_,iAs) -> iAs) x.AllInterfaces
 
     override x.ToString() = x.Item.ToString()
 
@@ -442,6 +471,16 @@ let getAllExprs (nAs:seq<NamespaceDeclA>) =
     |> Seq.map (fun (cA:ClassDeclA) -> match cA.Item with
         | ClassProc (_, _, _, _, _, eA) -> eA
         | ClassVar (_, _, _, _, eA) -> eA)
+
+let getCIClassDecls (nAs:seq<NDA>) =
+    Seq.map (fun (nA:NDA) -> if nA.IsClass then Some nA.ClassDeclAs else None) nAs
+    |> Util.getSomes
+    |> Seq.concat
+
+let getCIInterfaceDecls (nAs:seq<NDA>) =
+    Seq.map (fun (nA:NDA) -> if nA.IsClass then None else Some nA.InterfaceDeclAs) nAs
+    |> Util.getSomes
+    |> Seq.concat
 
 let isReturn (eA:ExprA) = match eA.Item with
     | Return _ -> true

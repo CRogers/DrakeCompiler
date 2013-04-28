@@ -7,7 +7,7 @@ let canCastTo (fromNA:NDA) toNA =
     Seq.exists (fun nA -> nA = toNA) fromNA.AllInterfaces
 
 
-let getBestOverload nAname (cirefs:Map<NPKey,CIRef>) (name:string) (argTypeNAs:list<NDA>) =
+let getBestOverload nAname (cirefs:Map<NPKey,'a>) (name:string) (argTypeNAs:list<NDA>) =
 
     // Format method as a string for error reporting
     let fmtMethod (args:seq<string>) = sprintf "%s(%s)" name <| System.String.Join(", ", args)

@@ -57,14 +57,15 @@ let checkReturns globals (program:seq<NamespaceDeclA>) =
                 let eA = annot :?> ExprA
                 match eA.Item with
                     | ReturnVoid -> failwithf "Must return %s not void in %s" ((!ptype).ToString()) cA.QName
-                    | Return reA -> if not (reA.PType = !ptype) then failwithf "Must return %s not %s" ((!ptype).ToString()) (reA.ToString())
+                    | Return reA -> if not (reA.PType = !ptype) then failwithf "Must return %s not %s" ((!ptype).ToString()) (reA.PType.ToString())
                     | _ -> ()) eA
 
             if not <| isBlocked eA then
                 failwithf "Must return at end"
         | _ -> ()
 
-    getClassDecls program
+    getCIClassDecls program
+    |> Seq.filter (fun (cA:CDA) -> not cA.IsCtor)
     |> Seq.iter innerPart
 
 let check globals =

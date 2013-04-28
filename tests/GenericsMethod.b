@@ -26,7 +26,7 @@ namespace G {
 	class Program {
 		public static main() {
 			var b = Box`[Bool].new(false);
-			b.id`[Int32](10);
+			b.id`[Int32](10, 4);
 		}
 	}
 }

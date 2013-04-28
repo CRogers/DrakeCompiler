@@ -24,7 +24,7 @@ let flatternAST (program:Program) =
 
 // The "this" parameter at the start of instance methods is implicit - we must add it
 let fixNonStaticFunctionParams (nAs:seq<NamespaceDeclA>) =
-    let classProcs = getClassDecls nAs
+    let classProcs = getCIClassDecls nAs
     Seq.iter (fun (cA:ClassDeclA) -> match cA.Item with
         | ClassProc (_, _, NotStatic, params_, _, _) ->
             params_ := Param("this", Type <| cA.NamespaceDecl.Value) :: !params_
@@ -62,7 +62,6 @@ let annotate (program:Program) =
     // Find the binops
     let binops = findBinops <| globalsToNAs !globals
 
-    annotateCIRefs <| globalsToNAs !globals
     annotateInterfaces  <| globalsToNAs !globals
 
     annotateTypes globals binops

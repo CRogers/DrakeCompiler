@@ -162,7 +162,7 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             uninitValueRef
 
 let genClass mo pIfaceTy (cA:ClassDeclA) =
-    match cA.Item with
+    if not cA.IsCtor then match cA.Item with
         | ClassVar _ -> ()
         | ClassProc (name, vis, isStatic, params_, retType, eA) ->
             use bldr = new Builder()
@@ -193,7 +193,9 @@ let genClass mo pIfaceTy (cA:ClassDeclA) =
 
 let genNamespace externs globals mo pIfaceTy (nA:NamespaceDeclA) =
     match nA.Item with
-        | Class (name, vis, isStruct, ifaces, cAs) ->
+        | Class (name, vis, isStruct, ifaces, _) ->
+            let cAs = nA.ClassDeclAs
+
             // Make object allocation ctor func
             let ctorFuncTy = functionType nA.InstancePointerType.Value [||]
             let ctorFunc = addFunction mo (changeSRO nA.QName + "+ctor") ctorFuncTy
@@ -225,7 +227,7 @@ let genNamespace externs globals mo pIfaceTy (nA:NamespaceDeclA) =
 
             // Gen the code for the procedures
             Seq.iter (genClass mo pIfaceTy) cAs
-        | Interface (name, vis, ifaces, iAs) -> ()//Seq.iter genInterface iAs
+        | Interface (name, vis, ifaces, _) -> ()//Seq.iter genInterface iAs
 
 
 let genExterns mo =
@@ -265,7 +267,7 @@ let genMain mo (program:seq<NamespaceDeclA>) =
     positionBuilderAtEnd bldr entry
     
     // Find the class with the static main() method and run it first
-    let cAs = getClassDecls program
+    let cAs = getCIClassDecls program
     let cAmain = Seq.tryFind (fun (cA:ClassDeclA) -> match cA.Item with
         | ClassProc ("main", Public, Static, params_, _, _ ) when !params_ = [] -> true
         | _ -> false) cAs

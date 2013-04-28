@@ -97,39 +97,6 @@ let expandTypes (globals:GlobalStore) =
 
 
     Seq.iter expandTypesNamespace <| globalsToNAs globals
-    
-
-// Find each type's procedures/vars and add references for them
-let annotateCIRefs (program:seq<NDA>) =
-
-    //////////
-    let getCIRefClass (cA:CDA) = (classNPKey cA, ClassRef cA)
-
-    //////////
-    let getCIRefInterface iname (iA:IDA) = (interfaceNPKey iA, InterfaceRef iA)
-
-    //////////
-    let annotateCIRefsNamespace (nA:NDA) =
-        // We need to go deeper - add CIRefs for classes/interfaces
-        let refs = match nA.Item with
-            | Class (name, vis, isStruct, ifaces, cAs) ->
-                let refs = Seq.map getCIRefClass cAs
-                
-                // Add a ctor ref
-                let c = ClassProc ("ctor", Private, Static, ref [], ref <| Type nA, ExprA(Nop, Pos.NilPos))
-                let cA = ClassDeclA (c, Pos.NilPos)
-                cA.IsCtor <- true
-                let ctorRef = (classNPKey cA, ClassRef cA)
-                Seq.append [ctorRef] refs
-
-            | Interface (name, vis, ifaces, iAs) ->
-                Seq.map (getCIRefInterface name) iAs
-
-        nA.AddRefs(refs)
-
-
-    Seq.iter annotateCIRefsNamespace program
-
 
 
 // Blaze through the AST and get the names of all the main types
