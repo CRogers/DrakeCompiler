@@ -30,10 +30,10 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
 
 
     /////////////
-    let rec annotateTypesExpr instanceLevelRefs staticLevelRefs (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
+    let rec annotateTypesExpr (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
         eA.AddRefs(refs)
         let aTE (nextEA:ExprA) = match nextEA.PType with
-            | Undef -> annotateTypesExpr instanceLevelRefs staticLevelRefs localVars eA.Refs nextEA
+            | Undef -> annotateTypesExpr localVars eA.Refs nextEA
             | _ -> ()
         eA.PType <- match eA.Item with
             | ConstInt (size, _) -> commonPtype !globals <| Int size
@@ -158,7 +158,7 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                     exNA.AddRef(classNPKey expandedCA, ClassRef expandedCA)
 
                     // Annotate it's types
-                    annotateTypesClass instanceLevelRefs staticLevelRefs expandedCA
+                    annotateTypesClass expandedCA
 
                     // Return new expanded name
                     expandedCA.Name
@@ -228,61 +228,35 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                 aTE !e1A
                 // Since e2A is lexically below and and in the same scope as e1A, all 
                 // e1A's references also appear in e2A
-                annotateTypesExpr instanceLevelRefs staticLevelRefs localVars (!e1A).Refs !e2A
+                annotateTypesExpr localVars (!e1A).Refs !e2A
                 commonPtype !globals Unit
             | Nop ->
                 commonPtype !globals Unit
 
 
     /////////////
-    and annotateTypesClass instanceLevelRefs staticLevelRefs (cA:ClassDeclA) =
-        let eA, refs = match cA.Item with
-            | ClassVar (name, vis, isStatic, ptype, eA) -> eA, []
-            | ClassProc (name, vis, isStatic, params_, returnType, eA) ->
-                // Add params as refs
-                let paramRefs = List.map (fun (p:Param) -> (p.Name, Ref(p.Name, p.PType, LocalRef))) !params_
-                // If an instance method add the 'this' param
-                let thisRef = if isStatic = NotStatic then [("this", Ref("this", Type <| cA.NamespaceDecl.Value, LocalRef))]
-                                                      else []
-                eA, paramRefs @ thisRef
+    and annotateTypesClass (cA:ClassDeclA) =
 
-        // Add ctor ref if it is a static class
-        let initRefs = 
-            match cA.IsStatic with
-                | NotStatic -> instanceLevelRefs
-                | Static -> staticLevelRefs
-            |> (fun a -> Seq.append a refs)
-            |> Map.ofSeq
+        let eA = cA.ExprA
+        let initRefs = cA.GetRefs ()
 
         let localVars = new List<Ref>()
 
         // Only annotate the expression if not a ctor
         if not cA.IsCtor then
-            annotateTypesExpr instanceLevelRefs staticLevelRefs localVars initRefs eA
+            annotateTypesExpr localVars initRefs eA
 
-        eA.AddLocalVars(List.ofSeq localVars)
-        cA.AddLocalVars(List.ofSeq localVars)
+        let localVarList = List.ofSeq localVars
+
+        eA.AddLocalVars localVarList
+        cA.AddLocalVars localVarList
 
 
     /////////////
     let annotateTypesNamespace (nA:NamespaceDeclA) =
         match nA.Item with
             | Class (name, vis, isStruct, ifaces, cAs) ->
-                // Ref for the ctor
-                let ctorRef = Ref("ctor", Type nA, StaticProcRef)
-                nA.CtorCA.Ref <- ctorRef
-
-                // Make refs for the cAs so they can reference eachother. Left for static, Right for not static
-                let classLevelRefs = 
-                    List.map (fun (cA:ClassDeclA) ->
-                        let ref = Ref(cA.Name, cA.PType, if cA.IsProc then (if cA.IsStatic = Static then StaticProcRef else InstanceProcRef) else InstanceVarRef cA)
-                        cA.Ref <- ref
-                        either (isStatic cA.IsStatic) (cA.Name, ref)) cAs
-
-                let instanceLevelRefs = allEithers classLevelRefs
-                let staticLevelRefs = Seq.append [name, ctorRef] (lefts classLevelRefs)
-
-                Seq.iter (annotateTypesClass instanceLevelRefs staticLevelRefs) cAs
+                Seq.iter annotateTypesClass  cAs
             | _ -> ()
 
 

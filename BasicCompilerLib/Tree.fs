@@ -57,9 +57,9 @@ and PType =
 and RefType =
     | LocalRef
     | InstanceVarRef of ClassDeclA
-    | StaticVarRef
-    | InstanceProcRef
-    | StaticProcRef
+    | StaticVarRef of ClassDeclA
+    | InstanceProcRef of ClassDeclA
+    | StaticProcRef of ClassDeclA
 with
     override x.ToString() = fmt x
 and Ref(name: string, ptype:PType, reftype:RefType) =
@@ -173,12 +173,26 @@ and ClassDecl =
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
     inherit Annot(pos)
+
+    let mutable _ref = None
+
     member val Item = item with get, set
     override x.ItemObj = upcast x.Item
 
+    member x.Ref = match _ref with
+        | Some r -> r
+        | None ->
+            let rtype =
+                if x.IsProc then match x.IsStatic with
+                    | Static    -> StaticProcRef x
+                    | NotStatic -> InstanceProcRef x
+                else InstanceVarRef x
+            let r = Ref(x.Name, x.PType, rtype)
+            _ref <- Some r
+            r
+
     member x.QName = x.NamespaceDecl.Value.QName + "." + x.Name
     member val Offset = -1 with get, set
-    member val Ref = Ref("", Undef, StaticProcRef) with get, set
     member val FuncType:option<TypeRef> = None with get, set
     member val IsCtor = false with get, set
     member val IsBinop = false with get, set
@@ -190,6 +204,27 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
         member val TypeConstraints = [] with get, set
         member val TypeEnv = Map.empty with get, set
         member val Template = None with get, set
+
+    member x.GetRefs () =
+        // Get class/static vars
+        let allnrefs = Map.toSeq x.NamespaceDecl.Value.Refs
+        let nrefs = seq {
+            for k, ClassRef cA in allnrefs do
+                if not cA.IsProc && cA.IsStatic = x.IsStatic then
+                    yield (cA.Name, cA.Ref)
+        }
+
+        // Get params
+        let prefs = 
+            if x.IsProc then 
+                seq { for p:Param in x.Params -> (p.Name, Ref(p.Name, p.PType, LocalRef)) }
+            else Seq.empty
+
+        let both = Map.ofSeq <| Seq.append nrefs prefs
+        match x.IsStatic with
+            | NotStatic -> both.Add("this", Ref("this", Type x.NamespaceDecl.Value, LocalRef))
+            | Static    -> both
+
 
     member x.IsProc = match x.Item with
         | ClassVar _ -> false
@@ -214,6 +249,10 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member x.IsStatic = match x.Item with
         | ClassVar (_, _, isStatic, _, _) -> isStatic
         | ClassProc (_, _, isStatic, _, _, _) -> isStatic
+
+    member x.ExprA = match x.Item with
+        | ClassVar (_, _, _, _, eA) -> eA
+        | ClassProc (_, _, _, _, _, eA) -> eA
 
     override x.ToString() = x.Item.ToString()
 

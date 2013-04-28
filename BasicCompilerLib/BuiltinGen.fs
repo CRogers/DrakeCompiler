@@ -21,8 +21,10 @@ let genConsole globals externs mo (nA:NamespaceDeclA) =
     buildCall bldr printf [|numFmtGEP; getParam println 0u|] "" |> ignore
     buildRetVoid bldr |> ignore
 
+    (*
     match nA.GetRef(ProcKey ("println", [])).Value with
         | ClassRef cA -> 
-            let ref = Ref("println", commonPtype globals Unit, StaticProcRef)
+            let ref = Ref("println", commonPtype globals Unit, StaticProcRef cA)
             ref.ValueRef <- Some println
             cA.Ref <- ref
+    *)

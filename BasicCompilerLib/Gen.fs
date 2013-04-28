@@ -63,7 +63,6 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
                 | None -> failwithf "Can't find ref %s" n
                 | Some r -> match r.RefType with
                     | LocalRef -> buildLoad bldr r.ValueRef.Value r.Name
-                    | StaticProcRef -> r.ValueRef.Value
                     | InstanceVarRef cA -> genClassVarLoad bldr (buildLoad bldr (eA.GetRef("this").Value.ValueRef.Value) "") cA.Offset
 
         | VarStatic _   -> failwithf "Compiler fail: This VarStatic should have been lowered to a more specific Dot in the annotation stage"
