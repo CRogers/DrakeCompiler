@@ -10,6 +10,10 @@ namespace G {
 			return b;
 		}
 
+        public getItem():T {
+            return item;
+        }
+
 		public id`[A](a: A, i: Int32):T {
 			return item;
 		}
@@ -21,12 +25,16 @@ namespace G {
 		public id`[A,B](a: A, a:B):T {
 			return item;
 		}
+
+        public unboxIt`[A](box: Box`[A]):A {
+            return box.getItem();
+        }
 	}
 
 	class Program {
 		public static main() {
-			var b = Box`[Bool].new(false);
-			b.id`[Int32](10, 4);
+			var b = Box`[Int32].new(10);
+			Box`[Bool].new(false).unboxIt`[Int32](b);
 		}
 	}
 }

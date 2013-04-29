@@ -134,6 +134,7 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                         | _ -> failwithf "Can only call class methods"
 
                 let expandMethod ptype typeParams isStatic methodName =
+                    // Check to see if it exists first
                     let exNA = ptypeToNA ptype
                     let exNAT = exNA :> ITemplate
                     let templateNA = exNAT.Template.Value
@@ -146,22 +147,28 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                                 match unexpandedCA.Item with
                                     | ClassProc (name, _, isSt, params_, _, _) when name = methodName && isSt = isStatic ->
                                         let found = ref !globals
-                                        yield (nameParamsKey name <| Templates.expandTemplateParams found typeEnv !params_, (unexpandedCA, typeEnv))
+                                        let key = nameParamsKey name <| Templates.expandTemplateParams found typeEnv !params_
+                                        yield (key, (key, unexpandedCA, typeEnv))
                                     | _ -> ()
                     }
 
-                    let unexpandedCA, typeEnv = getBestOverload exNA.QName cirefmap methodName argTypeNAs
+                    let ProcKey (_, argStrs), unexpandedCA, typeEnv = getBestOverload exNA.QName cirefmap methodName argTypeNAs
 
-                    // Expand CA and add it to the type's refs
-                    let expandedCA = Templates.expandTemplateC globals typeEnv unexpandedCA
-                    expandedCA.NamespaceDecl <- Some exNA
-                    exNA.AddRef(classNPKey expandedCA, ClassRef expandedCA)
+                    // See if we've already expanded out this one
+                    match exNA.GetRef(ProcKey (Templates.paramedNameEnv methodName unexpandedCA typeEnv, argStrs)) with
+                        | Some (ClassRef cA) -> cA.Name
+                        | None ->
+                            // Expand CA and add it to the type's refs
+                            let expandedCA = Templates.expandTemplateC globals typeEnv unexpandedCA
+                            expandedCA.NamespaceDecl <- Some exNA
+                            exNA.AddRef(classNPKey expandedCA, ClassRef expandedCA)
 
-                    // Annotate it's types
-                    annotateTypesClass expandedCA
+                            // Annotate it's types
+                            annotateTypesClass expandedCA
 
-                    // Return new expanded name
-                    expandedCA.Name
+                            // Return new expanded name
+                            expandedCA.Name
+                        | _ -> failwithf "This should never happen"
 
                 let loweredCall = match feA.Item with
                     // See if it's a static call
