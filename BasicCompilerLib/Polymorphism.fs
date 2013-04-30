@@ -15,9 +15,9 @@ let getBestOverload nAname (cirefs:Map<NPKey,'a>) (name:string) (argTypeNAs:list
     // Get all procs which have the same name, length and number of type params
     let procArgsSeq = 
         cirefs
-        |> Map.filter (fun k v -> match k with ProcKey (n, args) -> n = name && args.Length = argTypeNAs.Length | _ -> false)
+        |> Map.filter (fun k v -> match k with ProcKey (n, args, nTPs) -> n = name && args.Length = argTypeNAs.Length && nTPs = 0 | _ -> false)
         |> Map.toSeq
-        |> Seq.map (fun (ProcKey (_, args), _) -> args)
+        |> Seq.map (fun (ProcKey (_, args, _), _) -> args)
 
     // If there are no args with that name, error
     if Seq.length procArgsSeq = 0 then
@@ -69,7 +69,7 @@ let getBestOverload nAname (cirefs:Map<NPKey,'a>) (name:string) (argTypeNAs:list
         failwithf "Cannot choose between methods %s for %s in %s" methods (fmtMethod argTypeStrs) nAname
 
     let bestSignature = Seq.head bestResult
-    let bestKey = ProcKey (name, bestSignature)
+    let bestKey = ProcKey (name, bestSignature, 0)
 
     Map.find bestKey cirefs
 

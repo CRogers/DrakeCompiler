@@ -28,7 +28,7 @@ let builtinGenInts (globals:GlobalStore) =
     let genInt (size:int) =
         let nA = getIntNA globals size
         let buildOp (name, buildFunc) =
-            let matchingRefs = Map.filter (fun k v -> match k with ProcKey (n, _) -> n = name | _ -> false) nA.Refs |> Map.toSeq
+            let matchingRefs = Map.filter (fun k v -> match k with ProcKey (n, _, 0) -> n = name | _ -> false) nA.Refs |> Map.toSeq
             for (_, ClassRef cA) in matchingRefs do
                 let funcvr = cA.Ref.ValueRef.Value
 
@@ -64,7 +64,7 @@ let builtinGenBool (globals:GlobalStore) =
     let bool = commonPtypeStr Bool
     let nA = Map.find bool globals
     let buildOp (name, buildFunc) =
-        let cA = match nA.GetRef(ProcKey (name, [bool; bool])) with Some (ClassRef cA) -> cA
+        let cA = match nA.GetRef(ProcKey (name, [bool; bool], 0)) with Some (ClassRef cA) -> cA
         let funcvr = cA.Ref.ValueRef.Value
 
         use bldr = new Builder()
@@ -90,7 +90,7 @@ let builtinGenConsole externs (globals:GlobalStore) =
     let numFmt = Map.find "numFmt" externs
 
     let nA = Map.find "System::Console" globals
-    let printlnCA = match nA.GetRef(ProcKey ("println", [commonPtypeStr (Int 32)])) with Some (ClassRef cA) -> cA
+    let printlnCA = match nA.GetRef(ProcKey ("println", [commonPtypeStr (Int 32)], 0)) with Some (ClassRef cA) -> cA
     let println = printlnCA.Ref.ValueRef.Value
 
     let entry = appendBasicBlock println "entry"

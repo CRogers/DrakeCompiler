@@ -58,6 +58,7 @@ let annotateTypeParams (program:seq<NDA>) =
             | InterfaceProc (_, params_, returnType) ->
                 let typeParams = Set.union typeParams <| Set.ofList (iA :> ITemplate).TypeParams
                 expandPTypesParams typeParams params_
+                returnType := newPType typeParams !returnType
 
     ////////
     let aTPClass typeParams (cA:CDA) =

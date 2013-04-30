@@ -39,7 +39,7 @@ type Visibility =
 
 type NPKey = 
     | VarKey of string
-    | ProcKey of string * list<string>
+    | ProcKey of string * list<string> * int
     with override x.ToString() = fmt x
 
 and PType = 
@@ -303,9 +303,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     let mutable _ctorCA:option<ClassDeclA> = None
     let mutable refs:Map<NPKey,CIRef> = Map.empty;
 
-    let makeProcKey name params_ = ProcKey (name, List.map (fun (p:Param) -> match p.PType with (Type nA) -> nA.QName) params_)
+    let makeProcKey name params_ nTPs = ProcKey (name, List.map (fun (p:Param) -> match p.PType with Type nA -> nA.QName | TypeParam p -> "@TypeParam") params_, nTPs) // What should we do about parameterised types in CIRefs?
     let makeClassNPKey (cA:ClassDeclA) = match cA.Item with
-        | ClassProc _ -> makeProcKey cA.Name cA.Params
+        | ClassProc _ -> makeProcKey cA.Name cA.Params (cA :> ITemplate).TypeParams.Length
         | ClassVar _ -> VarKey cA.Name
 
     let bindPointerType t = Option.bind (fun t -> Some <| pointerType t 0u) t
@@ -313,9 +313,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     member x.Refs =
         match x.Item with
             | Class (_, _, _, _, cAs) -> Seq.map (fun (cA:ClassDeclA) -> (makeClassNPKey cA, ClassRef cA)) cAs
-            | Interface (_, _, _, iAs) -> Seq.map (fun (iA:InterfaceDeclA) -> (makeProcKey iA.Name iA.Params, InterfaceRef iA)) iAs
+            | Interface (_, _, _, iAs) -> Seq.map (fun (iA:InterfaceDeclA) -> (makeProcKey iA.Name iA.Params (iA :> ITemplate).TypeParams.Length, InterfaceRef iA)) iAs
         |> Seq.append (Map.toSeq refs)
-        |> Seq.append (if x.IsClass then [(makeProcKey "ctor" [], ClassRef x.CtorCA)] else [])
+        |> Seq.append (if x.IsClass then [(makeProcKey "ctor" [] 0, ClassRef x.CtorCA)] else [])
         |> Map.ofSeq
 
     member val Item = item with get, set
@@ -437,16 +437,16 @@ let paramsToPtypeString (params_:list<Param>) =
 
 let isQualifiedName (name:string) = name.Contains("::")
 
-let namePTypesKey name ptypes : NPKey = ProcKey (name, List.map userTypeToString ptypes)
-let nameParamsKey name params_ : NPKey = ProcKey (name, paramsToPtypeString params_)
-let interfaceNPKey (iA:InterfaceDeclA) = nameParamsKey iA.Name iA.Params
+let namePTypesKey name ptypes nTPs : NPKey = ProcKey (name, List.map userTypeToString ptypes, nTPs)
+let nameParamsKey name params_ nTPs : NPKey = ProcKey (name, paramsToPtypeString params_, nTPs)
+let interfaceNPKey (iA:InterfaceDeclA) = nameParamsKey iA.Name iA.Params (iA :> ITemplate).TypeParams.Length
 let classNPKey (cA:ClassDeclA) = match cA.Item with
-    | ClassProc (name, _, _, params_, _, _) -> nameParamsKey name !params_
+    | ClassProc (name, _, _, params_, _, _) -> nameParamsKey name !params_ (cA :> ITemplate).TypeParams.Length
     | ClassVar (name, _, _, _, _) -> VarKey name
 
 let NPKeyPretty npk = match npk with
     | VarKey s -> s
-    | ProcKey (name, ptypeStrs) -> sprintf "%s(%s)" name <| System.String.Join(", ", ptypeStrs)
+    | ProcKey (name, ptypeStrs, nTypeParams) -> sprintf "%s%s(%s)" name (nTypeParams.ToString()) <| System.String.Join(", ", ptypeStrs)
 
 let ifaceSignaturePretty (iA:IDA) = sprintf "%s(%s)" iA.Name <| System.String.Join(", ", paramsToPtypeString iA.Params)
 

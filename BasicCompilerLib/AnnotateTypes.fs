@@ -139,36 +139,51 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                     let exNAT = exNA :> ITemplate
                     let templateNA = exNAT.Template.Value
 
+                    let cirefToITemplate ciref = match ciref with | ClassRef cA -> cA :> ITemplate | InterfaceRef iA -> iA :> ITemplate 
+
                     let cirefmap = Map.ofSeq <| seq {
-                        for unexpandedCA in getClassDecls [templateNA :?> NamespaceDeclA] do
-                            let unexpandedCAT = unexpandedCA :> ITemplate
-                            if unexpandedCAT.TypeParams.Length = Seq.length typeParams then
-                                let typeEnv = Seq.fold (fun state (k, v) -> Map.add k v state) exNAT.TypeEnv <| Seq.zip unexpandedCAT.TypeParams typeParams
-                                match unexpandedCA.Item with
-                                    | ClassProc (name, _, isSt, params_, _, _) when name = methodName && isSt = isStatic ->
-                                        let found = ref !globals
-                                        let key = nameParamsKey name <| Templates.expandTemplateParams found typeEnv !params_
-                                        yield (key, (key, unexpandedCA, typeEnv))
-                                    | _ -> ()
+                        for k, unexpandedCI in Map.toSeq (templateNA :?> NamespaceDeclA).Refs do
+                            let unexpandedCIT = cirefToITemplate unexpandedCI
+                            if unexpandedCIT.TypeParams.Length = Seq.length typeParams then
+                                let typeEnv = Seq.fold (fun state (k, v) -> Map.add k v state) exNAT.TypeEnv <| Seq.zip unexpandedCIT.TypeParams typeParams
+                                match unexpandedCI with
+                                    | ClassRef cA -> match cA.Item with
+                                        | ClassProc (name, _, isSt, params_, _, _) when name = methodName && isSt = isStatic ->
+                                            let found = ref !globals
+                                            let key = nameParamsKey name (Templates.expandTemplateParams found typeEnv !params_) 0
+                                            yield (key, (key, unexpandedCI, typeEnv))
+                                        | _ -> ()
+                                    | InterfaceRef iA -> match iA.Item with
+                                        | InterfaceProc (name, params_, _) when name = methodName ->
+                                            let found = ref !globals
+                                            let key = nameParamsKey name (Templates.expandTemplateParams found typeEnv params_) 0
+                                            yield (key, (key, unexpandedCI, typeEnv))
                     }
 
-                    let ProcKey (_, argStrs), unexpandedCA, typeEnv = getBestOverload exNA.QName cirefmap methodName argTypeNAs
+                    let ProcKey (_, argStrs, _), unexpandedCI, typeEnv = getBestOverload exNA.QName cirefmap methodName argTypeNAs
 
                     // See if we've already expanded out this one
-                    match exNA.GetRef(ProcKey (Templates.paramedNameEnv methodName unexpandedCA typeEnv, argStrs)) with
+                    match exNA.GetRef(ProcKey (Templates.paramedNameEnv methodName (cirefToITemplate unexpandedCI) typeEnv, argStrs, 0)) with
                         | Some (ClassRef cA) -> cA.Name
-                        | None ->
-                            // Expand CA and add it to the type's refs
-                            let expandedCA = Templates.expandTemplateC globals typeEnv unexpandedCA
-                            expandedCA.NamespaceDecl <- Some exNA
-                            exNA.AddRef(classNPKey expandedCA, ClassRef expandedCA)
+                        | Some (InterfaceRef iA) -> iA.Name
+                        | None -> match unexpandedCI with
+                            | ClassRef cA ->
+                                // Expand CA and add it to the type's refs
+                                let expandedCA = Templates.expandTemplateC globals typeEnv cA
+                                expandedCA.NamespaceDecl <- Some exNA
+                                exNA.AddRef(classNPKey expandedCA, ClassRef expandedCA)
 
-                            // Annotate it's types
-                            annotateTypesClass expandedCA
+                                // Annotate it's types
+                                annotateTypesClass expandedCA
 
-                            // Return new expanded name
-                            expandedCA.Name
-                        | _ -> failwithf "This should never happen"
+                                // Return new expanded name
+                                expandedCA.Name
+                            | InterfaceRef iA ->
+                                let expandedIA = Templates.expandTemplateI globals typeEnv iA
+                                expandedIA.NamespaceDecl <- Some exNA
+                                exNA.AddRef(interfaceNPKey expandedIA, InterfaceRef expandedIA)
+
+                                expandedIA.Name
 
                 let loweredCall = match feA.Item with
                     // See if it's a static call
