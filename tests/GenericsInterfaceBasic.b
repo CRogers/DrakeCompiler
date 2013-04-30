@@ -3,7 +3,7 @@ using System;
 namespace G {
 
     interface Foo`[T] {
-        foo();
+        id(t: T): T;
     }
 
     class Bar`[T] : Foo`[T] {
@@ -11,7 +11,7 @@ namespace G {
             return ctor();
         }
 
-        public foo(){}
+        public foo(t: T):T { return t; }
     }
 
     class Program {

@@ -21,7 +21,7 @@ namespace K {
 		}
 
 		public static main() {
-			var a = (X)ImplX.new();
+			var a = [X] ImplX.new();
 			a.x();
 			test(a);
 		}

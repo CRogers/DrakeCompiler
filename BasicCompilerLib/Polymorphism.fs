@@ -30,9 +30,9 @@ let getBestOverload nAname (cirefs:Map<NPKey,'a>) (name:string) (argTypeNAs:list
         for procArgs in procArgsSeq do
             let score = 
                 seq {
-                    for (testNA, procArg) in Seq.zip argTypeNAs procArgs do
-                        yield (if procArg = testNA.QName then Some 2
-                        elif List.exists (fun (iface:NDA) -> iface.QName = procArg) testNA.AllInterfaces then Some 1
+                    for (testNA, Type procArgNA) in Seq.zip argTypeNAs procArgs do
+                        yield (if procArgNA = testNA then Some 2
+                        elif List.exists (fun (iface:NDA) -> iface = procArgNA) testNA.AllInterfaces then Some 1
                         else None)
                 }
                 |> Seq.fold (fun state xo -> match state with
@@ -65,7 +65,7 @@ let getBestOverload nAname (cirefs:Map<NPKey,'a>) (name:string) (argTypeNAs:list
 
     // Check to see that there are 2 methods which score the same
     if bestResult.Length > 1 then
-        let methods = Util.joinMap ", " fmtMethod bestResult
+        let methods = Util.joinMap ", " fmtMethod <| Seq.map (Seq.map userTypeToString) bestResult
         failwithf "Cannot choose between methods %s for %s in %s" methods (fmtMethod argTypeStrs) nAname
 
     let bestSignature = Seq.head bestResult

@@ -39,10 +39,10 @@ type Visibility =
 
 type NPKey = 
     | VarKey of string
-    | ProcKey of string * list<string> * int
+    | ProcKey of string * list<PType> * int
     with override x.ToString() = fmt x
 
-and PType = 
+and [<StructuralComparison;StructuralEquality>] PType = 
     | Undef
     | InitialType of string
     | ParamedType of PType * PType list
@@ -303,7 +303,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     let mutable _ctorCA:option<ClassDeclA> = None
     let mutable refs:Map<NPKey,CIRef> = Map.empty;
 
-    let makeProcKey name params_ nTPs = ProcKey (name, List.map (fun (p:Param) -> match p.PType with Type nA -> nA.QName | TypeParam p -> "@TypeParam") params_, nTPs) // What should we do about parameterised types in CIRefs?
+    let makeProcKey name params_ nTPs =
+        ProcKey (name, List.map (fun (p:Param) -> p.PType) params_, nTPs)
+        
     let makeClassNPKey (cA:ClassDeclA) = match cA.Item with
         | ClassProc _ -> makeProcKey cA.Name cA.Params (cA :> ITemplate).TypeParams.Length
         | ClassVar _ -> VarKey cA.Name
@@ -362,6 +364,14 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
         member val TypeConstraints = [] with get, set
         member val TypeEnv = Map.empty with get, set
         member val Template = None with get, set
+
+    interface IComparable with
+        member x.CompareTo other = match other with
+            | :? NamespaceDeclA as nA -> x.QName.CompareTo(nA.QName)
+
+    override x.Equals(other) = match other with
+        | :? NamespaceDeclA as nA -> x.QName = nA.QName
+        | _ -> false
 
     member x.IsClass = match x.Item with
         | Class _ -> true
@@ -437,8 +447,8 @@ let paramsToPtypeString (params_:list<Param>) =
 
 let isQualifiedName (name:string) = name.Contains("::")
 
-let namePTypesKey name ptypes nTPs : NPKey = ProcKey (name, List.map userTypeToString ptypes, nTPs)
-let nameParamsKey name params_ nTPs : NPKey = ProcKey (name, paramsToPtypeString params_, nTPs)
+let namePTypesKey name ptypes nTPs : NPKey = ProcKey (name, ptypes, nTPs)
+let nameParamsKey name params_ nTPs : NPKey = ProcKey (name, paramsToPtype params_, nTPs)
 let interfaceNPKey (iA:InterfaceDeclA) = nameParamsKey iA.Name iA.Params (iA :> ITemplate).TypeParams.Length
 let classNPKey (cA:ClassDeclA) = match cA.Item with
     | ClassProc (name, _, _, params_, _, _) -> nameParamsKey name !params_ (cA :> ITemplate).TypeParams.Length

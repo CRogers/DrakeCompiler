@@ -34,7 +34,8 @@ namespace G {
 	class Program {
 		public static main() {
 			var b = Box`[Int32].new(10);
-			Box`[Bool].new(false).unboxIt`[Int32](b);
+			var r = Box`[Bool].new(false).unboxIt`[Int32](b);
+            Console.println(r);
 		}
 	}
 }

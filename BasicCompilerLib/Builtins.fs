@@ -61,8 +61,8 @@ let builtinGenInts (globals:GlobalStore) =
     Seq.iter genInt [8;16;32;64]
 
 let builtinGenBool (globals:GlobalStore) =
-    let bool = commonPtypeStr Bool
-    let nA = Map.find bool globals
+    let bool = commonPtype globals Bool
+    let nA = Map.find (commonPtypeStr Bool) globals
     let buildOp (name, buildFunc) =
         let cA = match nA.GetRef(ProcKey (name, [bool; bool], 0)) with Some (ClassRef cA) -> cA
         let funcvr = cA.Ref.ValueRef.Value
@@ -90,7 +90,7 @@ let builtinGenConsole externs (globals:GlobalStore) =
     let numFmt = Map.find "numFmt" externs
 
     let nA = Map.find "System::Console" globals
-    let printlnCA = match nA.GetRef(ProcKey ("println", [commonPtypeStr (Int 32)], 0)) with Some (ClassRef cA) -> cA
+    let printlnCA = match nA.GetRef(ProcKey ("println", [commonPtype globals (Int 32)], 0)) with Some (ClassRef cA) -> cA
     let println = printlnCA.Ref.ValueRef.Value
 
     let entry = appendBasicBlock println "entry"
