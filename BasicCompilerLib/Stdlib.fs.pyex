@@ -31,6 +31,18 @@ $endfor\
 			return;
 		}
 	}
+
+	public struct Array`[T] {
+		public indexer(i: Int32):T {
+		}
+
+		public indexer(i: Int32, x:T) {
+		}
+
+		public static new(size: Int32):Array`[T] {
+			return ctor();
+		}
+	}
 }
 
 "

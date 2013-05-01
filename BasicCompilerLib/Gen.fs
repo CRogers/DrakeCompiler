@@ -104,7 +104,7 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             // Get concrete stub out of the vtable struct
             let vtableGEP = buildStructGEP bldr casted 0u ""
             let vtable = buildLoad bldr vtableGEP ""
-            let funcGEP = buildStructGEP bldr vtable 0u ""
+            let funcGEP = buildStructGEP bldr vtable (uint32 iA.GlobalOffset) ""
             let func = buildLoad bldr funcGEP ""
             
             // Call vfunc
@@ -225,7 +225,9 @@ let genNamespace externs globals mo pIfaceTy (nA:NamespaceDeclA) =
             // TODO: Static class vars
 
             // Gen the code for the procedures
-            Seq.iter (genClass mo pIfaceTy) cAs
+            for cA in cAs do
+                if not (cA.IsCtor || isNonExpandedTemplate cA) then
+                    genClass mo pIfaceTy cA
         | Interface (name, vis, ifaces, _) -> ()//Seq.iter genInterface iAs
 
 

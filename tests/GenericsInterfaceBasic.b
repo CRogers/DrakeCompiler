@@ -11,7 +11,7 @@ namespace G {
             return ctor();
         }
 
-        public foo(t: T):T { return t; }
+        public id(t: T):T { return t; }
     }
 
     class Program {

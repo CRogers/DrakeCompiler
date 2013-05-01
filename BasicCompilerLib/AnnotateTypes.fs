@@ -30,10 +30,10 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
 
 
     /////////////
-    let rec annotateTypesExpr (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
+    let rec annotateTypesExpr (enclosingCA:CDA) (localVars:List<Ref>) (refs:Map<string,Ref>) (eA:ExprA) =
         eA.AddRefs(refs)
         let aTE (nextEA:ExprA) = match nextEA.PType with
-            | Undef -> annotateTypesExpr localVars eA.Refs nextEA
+            | Undef -> annotateTypesExpr enclosingCA localVars eA.Refs nextEA
             | _ -> ()
         eA.PType <- match eA.Item with
             | ConstInt (size, _) -> commonPtype !globals <| Int size
@@ -45,6 +45,7 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                     | None -> failwithf "Can't find ref for %s" n;
 
             | VarStatic ptype -> !ptype
+            | VarTemplate _ -> failwithf "This shouldn't happen"
 
             | Binop (n, l, r) ->
                 aTE l
@@ -133,16 +134,14 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                                 CallInstance (cA, this, exprAs)
                         | _ -> failwithf "Can only call class methods"
 
-                let expandMethod ptype typeParams isStatic methodName =
+                let expandMethod (exNA:NDA) (templateNA:NDA) typeParams isStatic methodName =
                     // Check to see if it exists first
-                    let exNA = ptypeToNA ptype
                     let exNAT = exNA :> ITemplate
-                    let templateNA = exNAT.Template.Value
 
                     let cirefToITemplate ciref = match ciref with ClassRef cA -> cA :> ITemplate
 
                     let cirefmap = Map.ofSeq <| seq {
-                        for k, ClassRef unexpandedCA in Map.toSeq (templateNA :?> NamespaceDeclA).Refs do
+                        for k, ClassRef unexpandedCA in Map.toSeq templateNA.Refs do
                             let unexpandedCAT = unexpandedCA :> ITemplate
                             if unexpandedCAT.TypeParams.Length = Seq.length typeParams then
                                 let typeEnv = Seq.fold (fun state (k, v) -> Map.add k v state) exNAT.TypeEnv <| Seq.zip unexpandedCAT.TypeParams typeParams
@@ -155,7 +154,7 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                     }
 
                     let ProcKey (_, argStrs, _), unexpandedCA, typeEnv = getBestOverload exNA.QName cirefmap methodName argTypeNAs
-
+                    
                     // See if we've already expanded out this one
                     match exNA.GetRef(ProcKey (Templates.paramedNameEnv methodName (unexpandedCA :> ITemplate) typeEnv, argStrs, 0)) with
                         | Some (ClassRef cA) -> cA.Name
@@ -172,8 +171,24 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                             expandedCA.Name
                         | _ -> failwithf "This should never happen"
 
+                let expandMethodTemplate ptype =
+                    let exNA = ptypeToNA ptype
+                    let exNAT = exNA :> ITemplate
+                    let templateNA = exNAT.Template.Value :?> NamespaceDeclA
+                    expandMethod exNA templateNA
+
+                let expandMethodLocal thisNA =
+                    expandMethod thisNA thisNA
+
                 let loweredCall = match feA.Item with
                     // See if it's a static call
+                    | VarTemplate (n, typeParams) ->
+                        let this = feA.NamespaceDecl.Value
+                        let newMethodName = expandMethodLocal this !typeParams enclosingCA.IsStatic n
+                        match enclosingCA.IsStatic with
+                            | Static    -> staticCall this newMethodName
+                            | NotStatic -> instanceCall feA newMethodName
+
                     | Dot (dotEA, dotName) ->
                         aTE dotEA
                         match dotEA.Item with
@@ -183,14 +198,14 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                         aTE dotEA
                         match dotEA.Item with
                             | VarStatic ptype ->
-                                expandMethod !ptype !typeParams Static dotName
+                                expandMethodTemplate !ptype !typeParams Static dotName
                                 |> staticCall (ptypeToNA !ptype)
                             | _ -> 
-                                expandMethod dotEA.PType !typeParams NotStatic dotName
+                                expandMethodTemplate dotEA.PType !typeParams NotStatic dotName
                                 |> instanceCall dotEA
 
                     | Var n -> localCall n
-                
+
                 eA.Item <- loweredCall
                 aTE eA
                 eA.PType
@@ -237,7 +252,7 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
                 aTE !e1A
                 // Since e2A is lexically below and and in the same scope as e1A, all 
                 // e1A's references also appear in e2A
-                annotateTypesExpr localVars (!e1A).Refs !e2A
+                annotateTypesExpr enclosingCA localVars (!e1A).Refs !e2A
                 commonPtype !globals Unit
             | Nop ->
                 commonPtype !globals Unit
@@ -251,9 +266,9 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
 
         let localVars = new List<Ref>()
 
-        // Only annotate the expression if not a ctor
-        if not cA.IsCtor then
-            annotateTypesExpr localVars initRefs eA
+        // Only annotate the expression if not a ctor or a template
+        if not (cA.IsCtor || isNonExpandedTemplate cA)then
+            annotateTypesExpr cA localVars initRefs eA
 
         let localVarList = List.ofSeq localVars
 

@@ -65,7 +65,7 @@ let checkReturns globals (program:seq<NamespaceDeclA>) =
         | _ -> ()
 
     getCIClassDecls program
-    |> Seq.filter (fun (cA:CDA) -> not cA.IsCtor)
+    |> Seq.filter (fun (cA:CDA) -> not (cA.IsCtor || isNonExpandedTemplate cA))
     |> Seq.iter innerPart
 
 let check globals =

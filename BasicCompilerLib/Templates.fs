@@ -165,13 +165,16 @@ and expandTemplateExpr found env (templateEA:ExprA) =
     let eTEr eRef = ref <| eTE !eRef
     let eTP = expandTemplatePType found env
     let eTPr tRef = ref <| eTP !tRef
+    let eTPs = expandTemplatePTypes found env
+    let eTPsr tsRef = ref <| eTPs !tsRef
     let newE = match templateEA.Item with
         | ConstInt (size, v) -> ConstInt (size, v)
         | ConstBool b -> ConstBool b
         | Var s -> Var s
         | VarStatic ptype -> VarStatic <| eTPr ptype
+        | VarTemplate (n, ptypes) -> VarTemplate (n, eTPsr ptypes)
         | Dot (eA, n) -> Dot (eTE eA, n)
-        | DotTemplate (eA, n, typeParams) -> DotTemplate (eTE eA, n, ref (expandTemplatePTypes found env !typeParams))
+        | DotTemplate (eA, n, typeParams) -> DotTemplate (eTE eA, n, eTPsr typeParams)
         | Binop (n, leA, reA) -> Binop (n, eTE leA, eTE reA)
         | Cast (ptype, eA) -> Cast (eTPr ptype, eTE eA)
         | Call (eA, argEAs) -> Call (eTE eA, List.map eTE argEAs)
@@ -286,16 +289,18 @@ and findTemplateExpansionsExpr found (templateEA:ExprA) =
     let fTE = findTemplateExpansionsExpr found
     let fTEr eRef = fTE !eRef
     let fTP = findTemplateExpansionsPType found
-    let fTPr tRef = fTP !tRef
+    let fTPr tRef = tRef := fTP !tRef
+    let fTPsr tsRef = tsRef := findTemplateExpansionsPTypes found !tsRef
     match templateEA.Item with
         | ConstInt _
         | ConstBool _ 
         | Var _ -> ()
-        | VarStatic ptype -> ptype := fTPr ptype
+        | VarStatic ptype -> fTPr ptype
+        | VarTemplate (_, ptypes) -> fTPsr ptypes
         | Dot (eA, _) -> fTE eA
-        | DotTemplate (eA, _, typeParams) -> fTE eA; typeParams := findTemplateExpansionsPTypes found !typeParams
+        | DotTemplate (eA, _, typeParams) -> fTE eA; fTPsr typeParams
         | Binop (_, leA, reA) -> fTE leA; fTE reA
-        | Cast (ptype, eA) -> ptype := fTPr ptype; fTE eA
+        | Cast (ptype, eA) -> fTPr ptype; fTE eA
         | Call (eA, argEAs) -> fTE eA; Seq.iter fTE argEAs
         | Assign (eA1, eA2) -> fTE eA1; fTE eA2
         | DeclVar (_, eA) -> fTE eA
@@ -330,7 +335,8 @@ and findTemplateExpansionsNamespace found (templateNA:NDA) =
     match templateNA.Item with
         | Class (_, _, _, ifaces, cAs) ->
             findTemplateExpansionsPTypes found !ifaces |> ignore
-            Seq.iter (findTemplateExpansionsClass found) cAs
+            let nonTemplates = filterOutTemplates cAs
+            Seq.iter (findTemplateExpansionsClass found) nonTemplates
 
         | Interface (_, _, ifaces, iAs) ->
             findTemplateExpansionsPTypes found !ifaces |> ignore
@@ -341,6 +347,11 @@ let expandTemplates (globals:GlobalStoreRef) =
 
     // Filter out the original, non-expanded templates
     let nonTemplates = filterOutTemplates program
+
+    // Set the "templates" of all non-templates to be themselves
+    for nT in nonTemplates do
+        let nTT = nT :> ITemplate
+        nTT.Template <- Some nTT
 
     // Start off with the non-templates being "found"
     let found = ref << Map.ofSeq <| seq { for nA in nonTemplates do yield (nA.QName, nA) }

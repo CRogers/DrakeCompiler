@@ -58,6 +58,7 @@ let expandTypes (globals:GlobalStore) =
             match eA.Item with
                 | Cast (ptype, _) -> ptype := newPType eA.Namespace eA.Usings !ptype
                 | VarStatic ptype -> ptype := newPType eA.Namespace eA.Usings !ptype
+                | VarTemplate (_, ptypes) -> ptypes := newPTypes eA.Namespace eA.Usings !ptypes
                 | DotTemplate (_, _, ptypes) -> ptypes := newPTypes eA.Namespace eA.Usings !ptypes
                 | _ -> ()
 

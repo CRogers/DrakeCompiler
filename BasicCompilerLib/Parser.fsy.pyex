@@ -271,6 +271,8 @@ $endfor\
 expr4:
     | IDENT
         { ea (Var (v \$1)) (p \$1) }
+    | IDENT GENSPACEOP LSQUARE ptypeList RSQUARE
+        { ebb (VarTemplate (v \$1, ref \$4)) (p \$1) \$5  }
     | ptype
         { ea (VarStatic (ref \$1)) Pos.NilPos }
     | TRUE

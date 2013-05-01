@@ -130,6 +130,7 @@ and Expr =
     | ConstBool of bool
     | Var of string
     | VarStatic of PType ref
+    | VarTemplate of string * list<PType> ref
     | Dot of ExprA * string
     | DotTemplate of ExprA * string * list<PType> ref
     | DotInstance of ExprA * ClassDeclA
@@ -593,7 +594,8 @@ let rec foldASTExpr (branchFunc:Annot -> list<'a> -> 'a)  (leafFunc:Annot -> 'a)
         | ConstInt _
         | ConstBool _
         | Var _
-        | VarStatic _ -> leafFunc exprA
+        | VarStatic _ 
+        | VarTemplate _ -> leafFunc exprA
         | Dot (eA, name) -> bf1 eA
         | DotTemplate (eA, _, _) -> bf1 eA
         | DotStatic (nA, cA) -> leafFunc exprA

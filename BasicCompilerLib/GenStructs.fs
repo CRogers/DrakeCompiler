@@ -84,7 +84,7 @@ let createClassProcStub mo (cA:CDA) =
 let createClassProcStubs mo nAs =
     let cAs = getCIClassDecls nAs
     for cA in cAs do
-        if not cA.IsCtor then
+        if not (cA.IsCtor || isNonExpandedTemplate cA) then
             createClassProcStub mo cA
 
 let createVTableType vtableType ifaceType (nAs:list<NDA>) =
