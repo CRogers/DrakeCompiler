@@ -180,6 +180,7 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val Item = item with get, set
     override x.ItemObj = upcast x.Item
 
+    [<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     member x.Ref = match _ref with
         | Some r -> r
         | None ->

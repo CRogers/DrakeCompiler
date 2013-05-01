@@ -55,7 +55,7 @@ let annotate (program:Program) =
     let globals = getGlobalRefs program
 
     Templates.annotateTypeParams <| globalsToNAs !globals
-
+  
     expandTypes !globals
     Templates.expandTemplates globals
 

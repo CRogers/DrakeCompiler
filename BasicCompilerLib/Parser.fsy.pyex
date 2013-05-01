@@ -37,6 +37,8 @@ let eaa item (leftA:Annot) (rightA:Annot) = ebb item leftA.Pos rightA.Pos
 
 let ea item pos = ExprA(item, pos)
 
+let eanp item = ea item Pos.NilPos
+
 
 let nop = ea Nop Pos.NilPos
 
@@ -47,6 +49,38 @@ let applyTypeParamsConstraints<'a when 'a :> ITemplate> tps tcs (item:ITemplate)
         item.TypeConstraints <- tcs
     let casted = item :?> 'a
     casted :: list_
+
+let buildAutoCtor list_ typeName typeParams =
+    let initType = InitialType typeName
+    let ctorRetType = match List.length typeParams with
+        | 0 -> initType
+        | _ -> ParamedType (initType, List.map (fun tp -> InitialType tp) typeParams)
+
+    let classVars = List.ofSeq <| Seq.map (fun (vis, name, ptype, startPos, endPos) ->
+        cbb (ClassVar (name, vis, NotStatic, ref ptype, nop)) startPos endPos) list_
+    let ctorNamesParams = Seq.map (fun (_, name, ptype, _, _) -> (name, Param(name, ptype))) list_
+    let ctorNames = Seq.map fst ctorNamesParams |> List.ofSeq
+    let ctorParams = Seq.map snd ctorNamesParams |> List.ofSeq
+
+    let ctorNew = "@ret"
+
+    let ctorCreate =
+        let call = eanp <| Call (eanp <| Var "ctor", [])
+        eanp <| DeclVar (ctorNew, eanp <| Assign (eanp <| Var ctorNew, call))
+
+    let ctorAssign name =
+        let makeDot () = eanp <| Dot (eanp <| Var ctorNew, name)
+        eanp <| Assign (makeDot (), eanp <| Var name)
+
+    let ctorAssigns =
+        List.rev ctorNames
+        |> Seq.fold (fun state x -> eanp <| Seq (ref <| ctorAssign x, ref state)) nop
+    let ctorRet = eanp << Return << eanp <| Var ctorNew
+    let ctorEA = eanp <| Seq (ref ctorCreate, ref << eanp <| Seq (ref ctorAssigns, ref ctorRet ))
+
+    let ctor = ClassDeclA(ClassProc ("new", Public, Static, ref ctorParams, ref ctorRetType, ctorEA), Pos.NilPos)
+    ctor :: classVars
+
 
 %}
 
@@ -177,6 +211,21 @@ argList:
     | expr3 COMMA argList
         { \$1 :: \$3 }
 
+autoCtorList:
+    | /* empty */
+        { [] }
+    | visibility IDENT COLON ptype autoCtorList
+        { (\$1, v \$2, \$4, p \$2, p \$2) :: \$5 }
+    | visibility IDENT COLON ptype COMMA autoCtorList
+        { (\$1, v \$2, \$4, p \$2, \$5) :: \$6 }
+
+possAutoCtor:
+    | /* empty */
+        { (fun _ _ -> []) }
+    | LPAR autoCtorList RPAR
+        { buildAutoCtor \$2 }
+
+
 
 topLevelDecls:
     | /* empty */
@@ -189,9 +238,12 @@ topLevelDecls:
 namespaceDecls:
     | /* empty */
         { [] }
-    | visibility classOrStruct TYPENAME possTypeParams ifaceImplements possConstraints LCURLY classDecls RCURLY namespaceDecls
-        {   (nbb (Class (v \$3, \$1, \$2, ref \$5, \$8)) (p \$3) \$7, \$10)
-            ||> applyTypeParamsConstraints \$4 \$6
+    | visibility classOrStruct TYPENAME possTypeParams possAutoCtor ifaceImplements possConstraints LCURLY classDecls RCURLY namespaceDecls
+        {   let name = v \$3
+            let typeParams = \$4
+            let autoCtorCAs = \$5 name typeParams
+            (nbb (Class (name, \$1, \$2, ref \$6, autoCtorCAs @ \$9)) (p \$3) \$8, \$11)
+            ||> applyTypeParamsConstraints typeParams \$7
         }
     | visibility INTERFACE TYPENAME possTypeParams ifaceImplements possConstraints LCURLY interfaceDecls RCURLY namespaceDecls
         {   (nbb (Interface (v \$3, \$1, ref \$5, \$8)) \$2 \$7, \$10)
@@ -207,9 +259,9 @@ interfaceDecls:
 classDecls:
     | /* empty */
         { [] }
-    | visibility static_ VAR IDENT COLON possType EQUALS expr3 SEMI classDecls
+    | visibility static_ VAR IDENT COLON ptype EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
-    | visibility static_ VAR IDENT COLON possType SEMI classDecls
+    | visibility static_ VAR IDENT COLON ptype SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, nop)) \$3 \$7 :: \$8 }
     | visibility static_ identOrBinop possTypeParams LPAR params RPAR possReturnType possConstraints LCURLY expr0OrNop RCURLY classDecls
         {   let cA = cbb (ClassProc (v (fst \$3), \$1, \$2, ref \$6, ref \$8, \$11)) (p <| fst \$3) \$10
