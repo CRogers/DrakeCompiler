@@ -164,6 +164,13 @@ and ExprA(item:Expr, pos:Pos) =
         | Undef -> ""
         | _ -> ":" + x.PType.ToString()
 
+and MethodSignature = Name * PType list * PType
+
+and ForwardingMethodType =
+    | ForwardAll
+    | ForwardMethods of MethodSignature list
+    | HidingMethods of MethodSignature list
+    | HidingAll
 
 and ClassDecl =
     | ClassVar  of Name * Visibility * IsStatic * PType ref * ExprA
@@ -200,6 +207,8 @@ and ClassDeclA(item:ClassDecl, pos:Pos) =
     member val IsBinop = false with get, set
     member val DefiningMethod:option<InterfaceDeclA> = None with get, set
     member val IfaceProcStub:option<ValueRef> = None with get, set
+
+    member val MixinForwarding:option<ForwardingMethodType> = None with get, set 
 
     interface ITemplate with
         member val TypeParams = [] with get, set
@@ -316,8 +325,8 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     
     member x.Refs =
         match x.Item with
-            | Class (_, _, _, _, cAs) -> Seq.map (fun (cA:ClassDeclA) -> (makeClassNPKey cA, ClassRef cA)) cAs
-            | Interface (_, _, _, iAs) -> Seq.map (fun (iA:InterfaceDeclA) -> (makeProcKey iA.Name iA.Params (iA :> ITemplate).TypeParams.Length, InterfaceRef iA)) iAs
+            | Class (_, _, _, _, cAs) ->  seq { for cA in cAs -> (makeClassNPKey cA, ClassRef cA) }
+            | Interface (_, _, _, iAs) -> seq { for iA in iAs -> (makeProcKey iA.Name iA.Params (iA :> ITemplate).TypeParams.Length, InterfaceRef iA) }
         |> Seq.append (Map.toSeq refs)
         |> Seq.append (if x.IsClass then [(makeProcKey "ctor" [] 0, ClassRef x.CtorCA)] else [])
         |> Map.ofSeq
@@ -342,6 +351,9 @@ and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
                 cA
 
     member x.QName = qualifiedName x.Namespace x.Name []
+
+    member val MixinClass:option<NamespaceDeclA> = None with get, set
+    member x.IsMixinInterface = Option.isSome x.MixinClass
 
     member val AllInterfaces:list<NamespaceDeclA> = [] with get, set
     member val ImplementedBy:list<NamespaceDeclA> = [] with get, set
@@ -482,6 +494,8 @@ let commonPtype globals x =
     commonPtypeStr x    
     |> fun x -> Map.find x globals
     |> Type
+
+let mixinSigil name = "@mixin@" + name
 
 
 let getGlobal globals namespace_ (usings:seq<string>) name =

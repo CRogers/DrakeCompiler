@@ -57,7 +57,10 @@ let annotate (program:Program) =
     Templates.annotateTypeParams <| globalsToNAs !globals
   
     expandTypes !globals
+
+    Mixins.fixMixinReferences <| globalsToNAs !globals
     Templates.expandTemplates globals
+    Mixins.makeForwardingMethods <| globalsToNAs !globals
 
     // Find the binops
     let binops = findBinops <| globalsToNAs !globals

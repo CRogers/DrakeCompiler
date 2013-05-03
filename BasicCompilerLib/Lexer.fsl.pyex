@@ -29,11 +29,12 @@ let binopLevel char = match char with
 
 let allButLastChar (str:string) = str.Substring(0,str.Length-1)
 
-$py(defs=[("print", "PRINT"), ("proc", "PROC"), ("return", "RETURN")])\
-$py(defs+=[("true", "TRUE"), ("false", "FALSE"), ("start", "START")])\
-$py(defs+=[("if", "IF"), ("then", "THEN"), ("else", "ELSE"), ("while", "WHILE"), ("do", "DO"), ("var", "VAR")])\
-$py(defs+=[("namespace", "NAMESPACE"),("class", "CLASS"), ("struct", "STRUCT"), ("interface", "INTERFACE")])\
-$py(defs+=[("using", "USING"), ("static", "STATIC"), ("constructor", "CONSTRUCTOR")])\
+$py(defs=[("return", "RETURN")])\
+$py(defs+=[("true", "TRUE"), ("false", "FALSE")])\
+$py(defs+=[("if", "IF"), ("else", "ELSE"), ("while", "WHILE"), ("var", "VAR")])\
+$py(defs+=[("namespace", "NAMESPACE"),("class", "CLASS"), ("struct", "STRUCT"), ("interface", "INTERFACE"), ("mixin", "MIXIN")])\
+$py(defs+=[("forwarding", "FORWARDING"), ("hiding", "HIDING"), ("all", "ALL")])\
+$py(defs+=[("using", "USING"), ("static", "STATIC")])\
 $py(defs+=[("public", "PUBLIC"), ("private", "PRIVATE"), ("where", "WHERE")])\
 
 $py(defs+=[("(", "LPAR"), (")", "RPAR"), ("{", "LCURLY"), ("}", "RCURLY"), ("[", "LSQUARE"), ("]", "RSQUARE")])\

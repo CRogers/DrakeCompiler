@@ -57,7 +57,8 @@ let checkReturns globals (program:seq<NamespaceDeclA>) =
                 let eA = annot :?> ExprA
                 match eA.Item with
                     | ReturnVoid -> failwithf "Must return %s not void in %s" ((!ptype).ToString()) cA.QName
-                    | Return reA -> if not (reA.PType = !ptype) then failwithf "Must return %s not %s" ((!ptype).ToString()) (reA.PType.ToString())
+                    | Return reA -> if not (reA.PType = !ptype || Seq.exists (fun x -> x = ptypeToNA !ptype) (ptypeToNA reA.PType).AllInterfaces) then
+                        failwithf "Must return %s not %s" ((!ptype).ToString()) (reA.PType.ToString())
                     | _ -> ()) eA
 
             if not <| isBlocked eA then

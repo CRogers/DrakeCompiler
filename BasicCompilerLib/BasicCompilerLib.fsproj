@@ -53,6 +53,7 @@ python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDi
     <Compile Include="LLVMFSExtension.fs" />
     <Compile Include="LLVMTypes.fs" />
     <Compile Include="Tree.fs" />
+    <Compile Include="ASTBuildUtils.fs" />
     <Compile Include="Exceptions.fs" />
     <Compile Include="Parser.fs" />
     <None Include="Parser.fsy" />
@@ -70,6 +71,7 @@ python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDi
     <Compile Include="AnnotateTypes.fs" />
     <Compile Include="AnnotateInterfaces.fs" />
     <Compile Include="AnnotateRefs.fs" />
+    <Compile Include="Mixins.fs" />
     <Compile Include="Annotate.fs" />
     <Compile Include="Stdlib.fs" />
     <Compile Include="Compiler.fs" />

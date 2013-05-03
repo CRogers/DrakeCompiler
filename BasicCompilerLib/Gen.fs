@@ -34,8 +34,8 @@ let genMalloc externs bldr (nA:NDA) =
     genClassVarStore bldr obj 0 nA.VTable.Value |> ignore
     obj
 
-let rec genExpr pIfaceTy func bldr (eA:ExprA) =
-    let genE = genExpr pIfaceTy func bldr
+let rec genExpr (enclosingClass:CDA) pIfaceTy func bldr (eA:ExprA) =
+    let genE = genExpr enclosingClass pIfaceTy func bldr
     
     let genLValue (lvalue:ExprA) =
         match lvalue.Item with
@@ -46,7 +46,7 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             | DotStatic (nA, cA) ->
                 failwithf "unimplemented 347853"
             | DotInstance (dotEA, cA) ->
-                let dotE = genExpr pIfaceTy func bldr dotEA
+                let dotE = genE dotEA
                 genClassVarGEP bldr dotE cA.Offset
 
     let genArgsWithCasts eAs params_ =
@@ -121,7 +121,15 @@ let rec genExpr pIfaceTy func bldr (eA:ExprA) =
             buildStore bldr e addr
 
         | Return eA ->
-            buildRet bldr <| genE eA
+            let e = genE eA
+
+            // Check if we need to cast to an interface for returning
+            let ret =
+                if not (enclosingClass.PType = eA.PType) then
+                    buildBitCast bldr e pIfaceTy ""
+                else e
+
+            buildRet bldr ret
 
         | ReturnVoid ->
             buildRetVoid bldr
@@ -185,7 +193,7 @@ let genClass mo pIfaceTy (cA:ClassDeclA) =
                 (eA.GetRef(p.Name) |> Option.get).ValueRef <- Some stackSpace) !params_
 
             // Execute procedure body
-            let expr = genExpr pIfaceTy func bldr eA
+            let expr = genExpr cA pIfaceTy func bldr eA
 
             ()
 
@@ -209,7 +217,7 @@ let genNamespace externs globals mo pIfaceTy (nA:NamespaceDeclA) =
             let initClassVars (cA:ClassDeclA) = match cA.Item with
                 | ClassVar (name, vis, NotStatic, ptype, eA) ->
                     if not (eA.PType = commonPtype globals Unit) then
-                        let expr = genExpr pIfaceTy ctorFunc bldr eA
+                        let expr = genExpr cA pIfaceTy ctorFunc bldr eA
                         genClassVarStore bldr this cA.Offset expr |> ignore
                 | _ -> ()
 

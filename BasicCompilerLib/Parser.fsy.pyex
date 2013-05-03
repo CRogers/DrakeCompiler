@@ -1,54 +1,22 @@
 %{
 
 open Tree
+open ASTBuildUtils
 
 let sp (itemA:Annot) = itemA.Pos.StartPos
 let ep (itemA:Annot) = itemA.Pos.EndPos
 
 let v = snd<Pos,_>
 let p = fst<Pos,_>
-let markers (lpos:Pos) (rpos:Pos) = Pos(lpos.StartPos, rpos.EndPos)
-
-(*annotate using markers*)
-let tbb item lpos rpos = TopDeclA(item, markers lpos rpos)
-let tba item lpos (rightA:Annot)          = tbb item lpos rightA.Pos
-let tab item (leftA:Annot) rpos           = tbb item leftA.Pos rpos
-let taa item (leftA:Annot) (rightA:Annot) = tbb item leftA.Pos rightA.Pos
-
-let nbb item lpos rpos = NamespaceDeclA(item, markers lpos rpos)
-let nba item lpos (rightA:Annot)          = nbb item lpos rightA.Pos
-let nab item (leftA:Annot) rpos           = nbb item leftA.Pos rpos
-let naa item (leftA:Annot) (rightA:Annot) = nbb item leftA.Pos rightA.Pos
-
-let cbb item lpos rpos = ClassDeclA(item, markers lpos rpos)
-let cba item lpos (rightA:Annot)          = cbb item lpos rightA.Pos
-let cab item (leftA:Annot) rpos           = cbb item leftA.Pos rpos
-let caa item (leftA:Annot) (rightA:Annot) = cbb item leftA.Pos rightA.Pos
-
-let ibb item lpos rpos = InterfaceDeclA(item, markers lpos rpos)
-let iba item lpos (rightA:Annot)          = ibb item lpos rightA.Pos
-let iab item (leftA:Annot) rpos           = ibb item leftA.Pos rpos
-let iaa item (leftA:Annot) (rightA:Annot) = ibb item leftA.Pos rightA.Pos
-
-let ebb item lpos rpos = ExprA(item, markers lpos rpos)
-let eba item lpos (rightA:Annot)          = ebb item lpos rightA.Pos
-let eab item (leftA:Annot) rpos           = ebb item leftA.Pos rpos
-let eaa item (leftA:Annot) (rightA:Annot) = ebb item leftA.Pos rightA.Pos
-
-let ea item pos = ExprA(item, pos)
-
-let eanp item = ea item Pos.NilPos
-
 
 let nop = ea Nop Pos.NilPos
 
-let applyTypeParamsConstraints<'a when 'a :> ITemplate> tps tcs (item:ITemplate) list_ =
+let applyTypeParamsConstraints<'a when 'a :> ITemplate> tps tcs (item:ITemplate) =
     if List.length tps > 0 then
         item.TypeParams <- tps
     if List.length tcs > 0 then
         item.TypeConstraints <- tcs
-    let casted = item :?> 'a
-    casted :: list_
+    item :?> 'a
 
 let buildAutoCtor list_ typeName typeParams =
     let initType = InitialType typeName
@@ -81,6 +49,38 @@ let buildAutoCtor list_ typeName typeParams =
     let ctor = ClassDeclA(ClassProc ("new", Public, Static, ref ctorParams, ref ctorRetType, ctorEA), Pos.NilPos)
     ctor :: classVars
 
+let buildClassStruct vis classOrStruct name typeParams autoCtorBuilder ifaces typeConstraints cAs startPos endPos =
+    let autoCtorCAs = autoCtorBuilder name typeParams
+    nbb (Class (name, vis, classOrStruct, ref ifaces, autoCtorCAs @ cAs)) startPos endPos
+    |> applyTypeParamsConstraints typeParams typeConstraints
+
+let buildMixin vis name typeParams autoCtorBuilder ifaces typeConstraints cAs startPos endPos =
+    let interfaceDecls =
+        Util.getSomes <| Seq.map (fun (cA:ClassDeclA) -> match cA.Item with
+            | ClassProc (name, vis, isSt, params_, returnType, _)
+                when vis = Public && isSt = NotStatic && not (isNonExpandedTemplate cA) ->
+                    let newParams = List.map (fun (p:Param) -> Param(p.Name, p.PType)) !params_
+                    Some << ianp <| InterfaceProc (name, newParams, ref !returnType)
+            | _ -> None) cAs
+
+    let iface:NDA =
+        nanp <| Interface (name, vis, ref ifaces, List.ofSeq interfaceDecls)
+        |> applyTypeParamsConstraints typeParams typeConstraints
+
+    let mixinClassIfaces = [InitialType name]
+    let mixin = buildClassStruct vis NotStruct (mixinSigil name) typeParams autoCtorBuilder mixinClassIfaces typeConstraints cAs startPos endPos
+
+    iface.MixinClass <- Some mixin
+
+    [iface; mixin]
+
+let buildMixinClass name ptype eA forwarding startPos endPos =
+    let cA = cbb (ClassVar (name, Private, NotStatic, ref ptype, eA)) startPos endPos
+    cA.MixinForwarding <- Some forwarding
+    cA
+
+
+
 
 %}
 
@@ -92,7 +92,7 @@ $py(binops=['BINOP' + str(x) for x in range(0,7)])
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
 %token<Pos>            RETURN LCURLY RCURLY LSQUARE RSQUARE SEMI START PROC EQUALS LET
 %token<Pos>            IF THEN ELSE WHILE DO VAR
-%token<Pos>            NAMESPACE CLASS STRUCT INTERFACE
+%token<Pos>            NAMESPACE CLASS STRUCT INTERFACE MIXIN FORWARDING HIDING ALL
 %token<Pos>            PRIVATE PUBLIC
 %token<Pos>            STATIC CONSTRUCTOR
 %token<Pos>            ARROW USING DOT SRO GENSPACEOP WHERE
@@ -194,6 +194,28 @@ possConstraints:
     | WHERE params
         { \$2 }
 
+methodSignature:
+    | IDENT LPAR ptypeList RPAR possReturnType
+        { (v \$1, \$3, \$5) }
+
+methodSignatureList:
+    | methodSignature
+        { [\$1] }
+    | methodSignature COMMA methodSignatureList
+        { \$1 :: \$3 }
+
+possForwardingMethods:
+    | /* empty */
+        { ForwardAll }
+    | FORWARDING ALL
+        { ForwardAll }
+    | FORWARDING methodSignatureList
+        { ForwardMethods \$2 }
+    | HIDING methodSignatureList
+        { HidingMethods \$2 }
+    | HIDING ALL
+        { HidingAll }
+
 
 params:
     | /* empty */
@@ -239,15 +261,19 @@ namespaceDecls:
     | /* empty */
         { [] }
     | visibility classOrStruct TYPENAME possTypeParams possAutoCtor ifaceImplements possConstraints LCURLY classDecls RCURLY namespaceDecls
-        {   let name = v \$3
-            let typeParams = \$4
-            let autoCtorCAs = \$5 name typeParams
-            (nbb (Class (name, \$1, \$2, ref \$6, autoCtorCAs @ \$9)) (p \$3) \$8, \$11)
-            ||> applyTypeParamsConstraints typeParams \$7
+        {   let nA = buildClassStruct \$1 \$2 (v \$3) \$4 \$5 \$6 \$7 \$9 (p \$3) \$8
+            nA :: \$11
         }
+    | visibility MIXIN TYPENAME possTypeParams possAutoCtor ifaceImplements possConstraints LCURLY classDecls RCURLY namespaceDecls
+        {   let mixinNAs = buildMixin \$1 (v \$3) \$4 \$5 \$6 \$7 \$9 (p \$3) \$8
+            mixinNAs @ \$11
+        }
+
     | visibility INTERFACE TYPENAME possTypeParams ifaceImplements possConstraints LCURLY interfaceDecls RCURLY namespaceDecls
-        {   (nbb (Interface (v \$3, \$1, ref \$5, \$8)) \$2 \$7, \$10)
-            ||> applyTypeParamsConstraints \$4 \$6
+        {   let ifaceNA =
+                nbb (Interface (v \$3, \$1, ref \$5, \$8)) \$2 \$7
+                |> applyTypeParamsConstraints \$4 \$6
+            ifaceNA :: \$10
         }
 
 interfaceDecls:
@@ -266,8 +292,12 @@ classDecls:
     | visibility static_ identOrBinop possTypeParams LPAR params RPAR possReturnType possConstraints LCURLY expr0OrNop RCURLY classDecls
         {   let cA = cbb (ClassProc (v (fst \$3), \$1, \$2, ref \$6, ref \$8, \$11)) (p <| fst \$3) \$10
             cA.IsBinop <- snd \$3
-            applyTypeParamsConstraints \$4 \$9 cA \$13
+            (applyTypeParamsConstraints \$4 \$9 cA) :: \$13
         }
+    | MIXIN IDENT COLON ptype possForwardingMethods SEMI classDecls
+        { buildMixinClass (v \$2) \$4 nop \$5 \$1 \$6 :: \$7 }
+    | MIXIN IDENT COLON ptype EQUALS expr3 possForwardingMethods SEMI classDecls
+        { buildMixinClass (v \$2) \$4 \$6 \$7 \$1 \$8 :: \$9 }
 
 expr0OrNop:
     | /* empty */

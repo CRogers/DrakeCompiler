@@ -279,8 +279,9 @@ let annotateTypes (globals:GlobalStoreRef) (binops:BinopStore) =
     /////////////
     let annotateTypesNamespace (nA:NamespaceDeclA) =
         match nA.Item with
-            | Class (name, vis, isStruct, ifaces, cAs) ->
-                Seq.iter annotateTypesClass  cAs
+            | Class (name, vis, isStruct, ifaces, _) ->
+                let cAs = nA.ClassDeclAs
+                Seq.iter annotateTypesClass cAs
             | _ -> ()
 
 
