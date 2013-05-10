@@ -46,7 +46,7 @@ $py(defs+=[(".", "DOT"), (",", "COMMA"), ("->", "ARROW"), ("::", "SRO"), ("`", "
 let integer = '-'? ['0'-'9']+
 let ident = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 let typeName = ['A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
-let symbol = ['+' '-' '*' '/' '%' '&' '|' '!' '=' '?']+
+let symbol = ['+' '-' '*' '/' '%' '&' '|' '!' '=' '?' '<' '>']+
 let white = [' ' '\t']
 let endline = '\r'? '\n'
 let comment = '/' '/' [^ '\r' '\n']*

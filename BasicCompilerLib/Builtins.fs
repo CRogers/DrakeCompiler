@@ -47,6 +47,8 @@ let builtinGenInts (globals:GlobalStore) =
                 |> buildRet bldr
                 |> ignore
 
+        let intPredBuildFunc intPred bldr = buildICmp bldr intPred
+
         [
             ("+", buildAdd);
             ("-", buildSub);
@@ -55,6 +57,11 @@ let builtinGenInts (globals:GlobalStore) =
             ("%", buildSRem);
             ("&", buildAnd);
             ("|", buildOr);
+            ("==", intPredBuildFunc IntPredicate.IntEQ);
+            ("<",  intPredBuildFunc IntPredicate.IntSLT);
+            (">",  intPredBuildFunc IntPredicate.IntSGT);
+            ("<=", intPredBuildFunc IntPredicate.IntSLE);
+            (">=", intPredBuildFunc IntPredicate.IntSGE);
         ]
         |> Seq.iter buildOp 
 

@@ -34,11 +34,11 @@ def getAnswer(text):
 	ans = []
 	add = False
 	for x in text.split('\n'):
-		if x == ">>>*/":
+		if x == "]]]*/":
 			return '\n'.join(ans)
 		if add == True:
 			ans.append(x)
-		if x == "/*<<<":
+		if x == "/*[[[":
 			add = True
 	return "failed to find answer"
 

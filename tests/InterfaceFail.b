@@ -6,5 +6,5 @@ namespace K {
 	interface C : B {}
 }
 
-/*<<<
->>>*/
+/*[[[
+]]]*/

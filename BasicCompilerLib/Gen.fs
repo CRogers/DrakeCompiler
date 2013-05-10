@@ -138,9 +138,9 @@ let rec genExpr (enclosingClass:CDA) pIfaceTy func bldr (eA:ExprA) =
             let thenRet = isLastInSeqRet then_
             let elseRet = isLastInSeqRet else_
 
-            let ifthen = appendBasicBlock func "ifthen"
-            let ifelse = appendBasicBlock func "ifelse"
-            let ifcont = appendBasicBlock func "ifcont"
+            let ifthen = appendBasicBlock func "ifThen"
+            let ifelse = appendBasicBlock func "ifElse"
+            let ifcont = appendBasicBlock func "ifCont"
             // If
             let testexpr = genE test
             buildCondBr bldr testexpr ifthen ifelse |> ignore
@@ -159,7 +159,24 @@ let rec genExpr (enclosingClass:CDA) pIfaceTy func bldr (eA:ExprA) =
                 positionBuilderAtEnd bldr ifcont
             uninitValueRef
 
-        | While _ -> failwithf "Unimplemented while loops"
+        | While (testEA, bodyEA) ->
+            let whileTest = appendBasicBlock func "whileTest"
+            let whileBody = appendBasicBlock func "whileBody"
+            let whileCont = appendBasicBlock func "whileCont"
+
+            buildBr bldr whileTest |> ignore
+            // Test
+            positionBuilderAtEnd bldr whileTest
+            let test = genE testEA
+            buildCondBr bldr test whileBody whileCont |> ignore
+
+            // Body
+            genE bodyEA |> ignore
+            buildBr bldr whileTest |> ignore
+
+            positionBuilderAtEnd bldr whileCont
+            uninitValueRef
+
 
         | Seq (eA1, eA2) ->
             genE !eA1 |> ignore
