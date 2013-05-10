@@ -31,7 +31,7 @@ let allButLastChar (str:string) = str.Substring(0,str.Length-1)
 
 $py(defs=[("return", "RETURN")])\
 $py(defs+=[("true", "TRUE"), ("false", "FALSE")])\
-$py(defs+=[("if", "IF"), ("else", "ELSE"), ("while", "WHILE"), ("var", "VAR")])\
+$py(defs+=[("if", "IF"), ("else", "ELSE"), ("while", "WHILE"), ("var", "VAR"), ("val", "VAL")])\
 $py(defs+=[("namespace", "NAMESPACE"),("class", "CLASS"), ("struct", "STRUCT"), ("interface", "INTERFACE"), ("mixin", "MIXIN")])\
 $py(defs+=[("forwarding", "FORWARDING"), ("hiding", "HIDING"), ("all", "ALL")])\
 $py(defs+=[("using", "USING"), ("static", "STATIC")])\

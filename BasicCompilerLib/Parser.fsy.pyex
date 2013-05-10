@@ -91,7 +91,7 @@ $py(binops=['BINOP' + str(x) for x in range(0,7)])
 %token<Pos>            TRUE FALSE
 %token<Pos>            LPAR RPAR EOF PRINT COMMA COLON
 %token<Pos>            RETURN LCURLY RCURLY LSQUARE RSQUARE SEMI START PROC EQUALS LET
-%token<Pos>            IF THEN ELSE WHILE DO VAR
+%token<Pos>            IF THEN ELSE WHILE DO VAR VAL
 %token<Pos>            NAMESPACE CLASS STRUCT INTERFACE MIXIN FORWARDING HIDING ALL
 %token<Pos>            PRIVATE PUBLIC
 %token<Pos>            STATIC CONSTRUCTOR
@@ -156,6 +156,14 @@ ptypeList:
     | ptype COMMA ptypeList
         { \$1 :: \$3 }
 
+ptypeListEmpty:
+    | /* empty */
+        { [] }
+    | ptype
+        { [\$1] }
+    | ptype COMMA ptypeList
+        { \$1 :: \$3 }
+
 ifaceImplements:
     | /* empty */
         { [] }
@@ -195,7 +203,7 @@ possConstraints:
         { \$2 }
 
 methodSignature:
-    | IDENT LPAR ptypeList RPAR possReturnType
+    | IDENT LPAR ptypeListEmpty RPAR possReturnType
         { (v \$1, \$3, \$5) }
 
 methodSignatureList:
@@ -216,6 +224,9 @@ possForwardingMethods:
     | HIDING ALL
         { HidingAll }
 
+valOrVar:
+    | VAL { \$1 }
+    | VAR { \$1 }
 
 params:
     | /* empty */
@@ -285,9 +296,9 @@ interfaceDecls:
 classDecls:
     | /* empty */
         { [] }
-    | visibility static_ VAR IDENT COLON ptype EQUALS expr3 SEMI classDecls
+    | visibility static_ valOrVar IDENT COLON ptype EQUALS expr3 SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, \$8)) \$3 \$9 :: \$10 }
-    | visibility static_ VAR IDENT COLON ptype SEMI classDecls
+    | visibility static_ valOrVar IDENT COLON ptype SEMI classDecls
         { cbb (ClassVar (v \$4, \$1, \$2, ref \$6, nop)) \$3 \$7 :: \$8 }
     | visibility static_ identOrBinop possTypeParams LPAR params RPAR possReturnType possConstraints LCURLY expr0OrNop RCURLY classDecls
         {   let cA = cbb (ClassProc (v (fst \$3), \$1, \$2, ref \$6, ref \$8, \$11)) (p <| fst \$3) \$10
@@ -317,7 +328,7 @@ expr1:
             eab (Call (dot, [\$3; \$6])) \$1 \$7 }*/
     | expr4 EQUALS expr3 SEMI
         {   eab (Assign (\$1, \$3)) \$1 \$4 }
-    | VAR IDENT EQUALS expr3 SEMI
+    | valOrVar IDENT EQUALS expr3 SEMI
         {   let var = ea (Var (v \$2)) (p \$2)
             let assign = eba (Assign (var, \$4)) (p \$2) \$4
             eba (DeclVar (v \$2, assign)) \$1 \$4 }
