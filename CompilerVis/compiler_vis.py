@@ -129,9 +129,9 @@ def postCompilerCfg():
 	with open('llvm.bc', 'w') as f:
 		f.write(llvm)
 
-	cfg = dotFiles('cfg', 'cfg')
+	cfg = dotFiles('cfg-only', 'cfg')
 	dom = dotFiles('dom', 'dom')
-	reg = dotFiles('regions', 'reg')
+	reg = dotFiles('regions-only', 'reg')
 	cg  = dotFiles('callgraph', 'callgraph')
 	
 	os.chdir(owd)

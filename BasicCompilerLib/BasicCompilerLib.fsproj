@@ -45,7 +45,7 @@
 python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Lexer.fsl.pyex" &gt;"$(ProjectDir)\Lexer.fsl"
 python "$(ProjectDir)\..\lib\pyexpander\scripts-2.7\expander.py" -f "$(ProjectDir)\Stdlib.fs.pyex" &gt;"$(ProjectDir)\Stdlib.fs"
 "$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fslex" --unicode "$(ProjectDir)\Lexer.fsl" -o "$(ProjectDir)\Lexer.fs"
-"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" -v "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser</PreBuildEvent>
+"$(ProjectDir)\..\lib\FSharp.PowerPack\bin\fsyacc" "$(ProjectDir)\Parser.fsy" -o "$(ProjectDir)\Parser.fs" --module Parser</PreBuildEvent>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Util.fs" />
