@@ -149,6 +149,30 @@ and Expr =
     | While of ExprA * ExprA
     | Seq of ExprA ref * ExprA ref
     | Nop
+    with override x.ToString() = match x with
+        | ConstInt (_, i) -> sprintf "ConstInt %d" i
+        | ConstBool b -> sprintf "ConstBool %s" (b.ToString()) 
+        | Var n -> sprintf "Var %s" n
+        | VarStatic ptype -> "VarStatic"
+        | VarTemplate _ -> "VarTemplate"
+        | Dot (eA, n) -> sprintf "Dot (%s) %s" (eA.ToString()) n
+        | DotTemplate _ -> "DotTemplate"
+        | DotInstance _ -> "DotInstance"
+        | DotStatic _ -> "DotStatic"
+        | Binop (n, l, r) -> sprintf "Binop %s (%s) (%s)" n (l.ToString()) (r.ToString())
+        | Cast _ -> "Cast"
+        | Call (feA, argEAs) -> sprintf "Call (%s) %s" (feA.ToString()) (argEAs.ToString())
+        | CallStatic _ -> "CallStatic"
+        | CallInstance _ -> "CallInstance"
+        | CallVirtual _ -> "CallVirtual"
+        | Assign (lvalue, eA) -> sprintf "Assign (%s) (%s)" (lvalue.ToString()) (eA.ToString())
+        | DeclVar (n, eA) -> sprintf "DeclVar %s (%s)" n (eA.ToString())
+        | Return eA -> sprintf "Return (%s)" (eA.ToString())
+        | ReturnVoid -> "ReturnVoid"
+        | If (test, then_, else_) -> sprintf "If (%s) (%s) (%s)" (test.ToString()) (then_.ToString()) (else_.ToString())
+        | While (test, eA) -> sprintf "While (%s) (%s)" (test.ToString()) (eA.ToString())
+        | Seq (a, b) -> sprintf "Seq (%s) (%s)" ((!a).ToString()) ((!b).ToString())
+        | Nop -> "Nop"
 
 and ExprA(item:Expr, pos:Pos) =
     inherit AnnotRefs<string,Ref>(pos)    
@@ -159,8 +183,7 @@ and ExprA(item:Expr, pos:Pos) =
     member val PType = Undef with get, set
 
     override x.ToString() = 
-        let union, _ = Microsoft.FSharp.Reflection.FSharpValue.GetUnionFields(x.Item, x.Item.GetType())
-        union.Name + match x.PType with
+        x.Item.ToString() + match x.PType with
         | Undef -> ""
         | _ -> ":" + x.PType.ToString()
 
@@ -176,8 +199,8 @@ and ClassDecl =
     | ClassVar  of Name * Visibility * IsStatic * PType ref * ExprA
     | ClassProc of Name * Visibility * IsStatic * list<Param> ref * (*returnType*) PType ref * (*body*) ExprA
     with override x.ToString() = match x with
-        | ClassVar  (n, vis, isStatic, ptype, _) -> sprintf "ClassVar (%s, %s, %s, %s)" n (vis.ToString()) (isStatic.ToString()) (ptype.ToString())
-        | ClassProc (n, vis, isStatic, params_, retType, _) -> sprintf "ClassProc (%s, %s, %s, %s, %s)" n (vis.ToString()) (isStatic.ToString()) (listTS !params_) ((!retType).ToString())
+        | ClassVar  (n, vis, isStatic, ptype, eA) -> sprintf "(ClassVar %s %s %s (%s) (%s))" n (vis.ToString()) (isStatic.ToString()) (ptype.ToString()) (eA.ToString())
+        | ClassProc (n, vis, isStatic, params_, retType, eA) -> sprintf "(ClassProc %s %s %s %s (%s) (%s))" n (vis.ToString()) (isStatic.ToString()) ((!params_).ToString()) ((!retType).ToString()) (eA.ToString())
 
 and ClassDeclA(item:ClassDecl, pos:Pos) =
     inherit Annot(pos)
@@ -305,8 +328,8 @@ and NamespaceDecl =
     | Class of Name * Visibility * IsStruct * list<PType> ref * list<ClassDeclA>
     | Interface of Name * Visibility * list<PType> ref * list<InterfaceDeclA>
     with override x.ToString() =  match x with
-        | Class     (n, vis, isS, ifaces, _) -> sprintf "Class (%s, %s, %s, %s)" n (vis.ToString()) (isS.ToString()) (listTS !ifaces)
-        | Interface (n, vis, ifaces, _) -> sprintf "Interface (%s, %s, %s)" n (vis.ToString()) (listTS !ifaces)
+        | Class     (n, vis, isS, ifaces, cAs) -> sprintf "(Class %s %s %s %s %s)" n (vis.ToString()) (isS.ToString()) (listTS !ifaces) (cAs.ToString())
+        | Interface (n, vis, ifaces, iAs) -> sprintf "(Interface %s %s %s %s)" n (vis.ToString()) (listTS !ifaces) (iAs.ToString())
 
 and NamespaceDeclA(item:NamespaceDecl, pos:Pos) =
     inherit Annot(pos)
@@ -431,6 +454,10 @@ type TopDeclA(item:TopDecl, pos:Pos) =
     member x.IsNamespace = match item with
         | Namespace (name, decls) -> true
         | _ -> false
+
+    override x.ToString() = match x.Item with
+        | Using n -> sprintf "Using %s" n
+        | Namespace (n, nAs) -> sprintf "Namespace %s %s" n <| nAs.ToString()
 
 
 type CompilationUnit = list<TopDeclA>

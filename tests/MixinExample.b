@@ -7,6 +7,8 @@ namespace K {
 		public static new():Vehicle { return ctor(); }
 		public speed():Int32 { return speed; }
 		public mileage():Int32 { return mileage; }
+		public accelerate(delta: Int32) { speed = speed + delta; }
+		public decelerate(delta: Int32) { speed = speed - delta; }
 	}
 
 	mixin Asset {
@@ -21,7 +23,7 @@ namespace K {
 
 	class Car : Asset {
 		mixin vehicle:Vehicle = Vehicle.new()
-			forwarding speed():Int32;
+			forwarding speed():Int32, accelerate(Int32);
 		mixin asset:Asset;
 
 		public static new(value: Int64):Car {
