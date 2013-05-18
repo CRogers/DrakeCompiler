@@ -10,7 +10,7 @@
     <RootNamespace>BasicCompiler</RootNamespace>
     <AssemblyName>BasicCompilerLib</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <Name>BasicCompilerLib</Name>
+    <Name>DrakeCompilerLib</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

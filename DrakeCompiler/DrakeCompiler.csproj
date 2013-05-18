@@ -57,9 +57,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\BasicCompilerLib\BasicCompilerLib.fsproj">
+    <ProjectReference Include="..\DrakeCompilerLib\DrakeCompilerLib.fsproj">
       <Project>{1080d40b-a0fe-41d3-8969-5ca5412fb37d}</Project>
-      <Name>BasicCompilerLib</Name>
+      <Name>DrakeCompilerLib</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

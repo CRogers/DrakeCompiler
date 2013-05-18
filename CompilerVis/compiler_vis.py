@@ -11,7 +11,7 @@ import glob
 import base64
 
 TESTSDIR = '../tests/'
-COMPILERLOC = "../BasicCompiler/bin/Debug/BasicCompiler.exe"
+COMPILERLOC = "../DrakeCompiler/bin/Debug/DrakeCompiler.exe"
 
 def run(program, args):
 	print(program + ' ' + args)
